@@ -1,6 +1,6 @@
 package com.guarezi.easymanager.application.ports.out;
 
-import com.guarezi.easymanager.domain.Product;
+import com.guarezi.easymanager.domain.classes.Product;
 
 import java.util.List;
 import java.util.Optional;

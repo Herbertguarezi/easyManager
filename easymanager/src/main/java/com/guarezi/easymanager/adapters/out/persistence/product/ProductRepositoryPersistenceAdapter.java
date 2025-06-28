@@ -1,7 +1,7 @@
-package com.guarezi.easymanager.adapters.out.persistence;
+package com.guarezi.easymanager.adapters.out.persistence.product;
 
 import com.guarezi.easymanager.application.ports.out.ProductRepository;
-import com.guarezi.easymanager.domain.Product;
+import com.guarezi.easymanager.domain.classes.Product;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -74,6 +74,7 @@ public class ProductRepositoryPersistenceAdapter implements ProductRepository {
         product.setName(entity.getName());
         product.setAmount(entity.getAmount());
         product.setPhotoUrl(entity.getPhotoUrl());
+        product.setBarcode(entity.getBarcode());
 
         return product;
     }
@@ -86,6 +87,7 @@ public class ProductRepositoryPersistenceAdapter implements ProductRepository {
         entity.setName(product.getName());
         entity.setAmount(product.getAmount());
         entity.setPhotoUrl(product.getPhotoUrl());
+        entity.setBarcode(product.getBarcode());
 
         return entity;
     }

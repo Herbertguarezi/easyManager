@@ -2,7 +2,7 @@ package com.guarezi.easymanager.application;
 
 import com.guarezi.easymanager.application.ports.in.ProductUseCases;
 import com.guarezi.easymanager.application.ports.out.ProductRepository;
-import com.guarezi.easymanager.domain.Product;
+import com.guarezi.easymanager.domain.classes.Product;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,13 +23,6 @@ public class ProductService implements ProductUseCases {
 
     @Autowired
     ProductRepository productRepository;
-
-    private static final String UPLOAD_FOLDER = "uploads/";
-
-    @Override
-    public Product create(Product product){
-        return productRepository.saveProduct(product);
-    }
 
     @Override
     public Product create(String name, int amount, MultipartFile file, HttpServletRequest request) throws IOException {
@@ -66,8 +59,15 @@ public class ProductService implements ProductUseCases {
     }
 
     @Override
-    public Product updateProduct(Product newProduct, UUID id) {
-        return productRepository.saveProduct(newProduct, id);
+    public Product updateProduct(Product newProduct, UUID id){
+        try{
+            if (id == null)throw new Exception();
+            if (newProduct == null)throw new Exception();
+            return productRepository.saveProduct(newProduct, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     @Value("${upload.directory}")

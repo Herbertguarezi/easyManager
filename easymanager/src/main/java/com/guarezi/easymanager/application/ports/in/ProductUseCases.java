@@ -1,7 +1,6 @@
 package com.guarezi.easymanager.application.ports.in;
 
-import com.guarezi.easymanager.domain.Product;
-import jakarta.servlet.http.HttpServlet;
+import com.guarezi.easymanager.domain.classes.Product;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -12,7 +11,6 @@ import java.util.UUID;
 
 public interface ProductUseCases {
     // Use case to create a product
-    Product create(Product product);
     Product create(String name, int amount, MultipartFile file, HttpServletRequest request) throws IOException;
 
     // Use case to delete a product

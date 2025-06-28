@@ -1,4 +1,4 @@
-package com.guarezi.easymanager.adapters.out.persistence;
+package com.guarezi.easymanager.adapters.out.persistence.product;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -6,7 +6,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -27,4 +26,7 @@ public class ProductEntity {
 
     @Column(nullable = false)
     private String photoUrl;
+
+    @Column(nullable = false)
+    private String barcode;
 }
