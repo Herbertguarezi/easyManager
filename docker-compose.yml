@@ -1,0 +1,50 @@
+services:
+  mariadb_manager:
+    image: mariadb:11
+    container_name: mariadb_manager
+    restart: always
+    ports:
+      - "3386:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: easymanager
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - springnet
+
+  easymanager_api:
+    build: 
+      context: ./easymanager
+      dockerfile: Dockerfile
+    container_name: springboot-app
+    depends_on:
+      - mariadb_manager
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb_manager:3306/easymanager
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - springnet
+
+  easymanager_front_end:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: react-app
+    depends_on:
+      - easymanager_api
+    ports:
+      - "3030:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    networks:
+      - springnet
+
+networks:
+  springnet:
