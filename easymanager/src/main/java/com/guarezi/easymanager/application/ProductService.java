@@ -25,7 +25,7 @@ public class ProductService implements ProductUseCases {
     ProductRepository productRepository;
 
     @Override
-    public Product create(String name, int amount, MultipartFile file, HttpServletRequest request) throws IOException {
+    public Product create(String name, int amount, MultipartFile file, String barcode, HttpServletRequest request) throws IOException {
         // Save image
         String fileName = saveImage(file);
 
@@ -39,6 +39,7 @@ public class ProductService implements ProductUseCases {
         product.setName(name);
         product.setAmount(amount);
         product.setPhotoUrl(imageUrl);
+        product.setBarcode(barcode);
 
         return productRepository.saveProduct(product);
     }

@@ -16,7 +16,7 @@ services:
   easymanager_api:
     build: 
       context: ./easymanager
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: springboot-app
     depends_on:
       - mariadb_manager
@@ -28,6 +28,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
     networks:
       - springnet
+  
 
   easymanager_front_end:
     build:
@@ -37,7 +38,7 @@ services:
     depends_on:
       - easymanager_api
     ports:
-      - "3030:5173"
+      - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules

@@ -41,7 +41,7 @@ public class ProductRepositoryPersistenceAdapter implements ProductRepository {
             ProductEntity productEntity = toEntity(product);
             return toDomain(repository.save(productEntity));
         } catch (Exception e) {
-            throw new RuntimeException("Couldn't save the product" + e);
+            throw new RuntimeException("Couldn't save the product " + e);
         }
 
     }

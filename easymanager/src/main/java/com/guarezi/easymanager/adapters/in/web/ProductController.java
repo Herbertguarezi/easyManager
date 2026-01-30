@@ -45,10 +45,11 @@ public class ProductController {
             @RequestParam("name") String name,
             @RequestParam("amount") int amount,
             @RequestParam("file") MultipartFile file,
+            @RequestParam("barcode") String barcode,
             HttpServletRequest request
     ) {
         try {
-            return new ResponseEntity<>(productUseCases.create(name, amount, file, request), HttpStatus.OK);
+            return new ResponseEntity<>(productUseCases.create(name, amount, file, barcode, request), HttpStatus.OK);
         } catch (IOException e) {
             return ResponseEntity.status(500).body("Erro ao salvar produto: " + e.getMessage());
         }

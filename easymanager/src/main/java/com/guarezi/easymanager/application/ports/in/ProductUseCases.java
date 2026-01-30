@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface ProductUseCases {
     // Use case to create a product
-    Product create(String name, int amount, MultipartFile file, HttpServletRequest request) throws IOException;
+    Product create(String name, int amount, MultipartFile file, String barcode, HttpServletRequest request) throws IOException;
 
     // Use case to delete a product
     void delete(UUID id);
