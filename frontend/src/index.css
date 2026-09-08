@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --font-sans: "Instrument Sans", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --bg: #f7f5f2;
+  --surface: #ffffff;
+  --surface-alt: #fbfaf8;
+  --surface-muted: #fcfbf9;
+
+  --border: #e6e1d9;
+  --border-soft: #eeeae3;
+  --border-softer: #f2efe9;
+  --border-input: #e2ddd4;
+
+  --text: #1c1a17;
+  --text-muted: #6f6a63;
+  --text-faint: #8a847b;
+  --text-faintest: #a49d93;
+
+  --accent: oklch(0.52 0.08 176);
+  --accent-hover: oklch(0.46 0.07 176);
+  --accent-soft-bg: oklch(0.96 0.02 176);
+  --accent-soft-text: oklch(0.38 0.06 176);
+
+  --warn: oklch(0.58 0.13 62);
+  --danger: oklch(0.53 0.15 25);
+  --ok: oklch(0.5 0.09 155);
+
+  --sidebar-bg: #1a1815;
+  --sidebar-text: #e8e4dd;
+  --sidebar-text-muted: #8b857c;
+  --sidebar-text-dim: #a8a29a;
+  --sidebar-label: #746e65;
+  --sidebar-hover-bg: #26231f;
+  --sidebar-hover-text: #f2eee7;
+  --sidebar-border: #2c2823;
+  --sidebar-chip-bg: #302c26;
+  --sidebar-chip-text: #cec7bc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: oklch(0.86 0.05 176);
+}

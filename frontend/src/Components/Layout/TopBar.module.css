@@ -1,0 +1,76 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.eyebrow {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+
+.searchDot {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--text-faintest);
+  border-radius: 50%;
+  flex: none;
+}
+
+.searchInput {
+  border: 0;
+  outline: 0;
+  font-family: inherit;
+  font-size: 13px;
+  width: 100%;
+  background: transparent;
+  color: var(--text);
+}
+
+.primaryButton {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-hover);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.primaryButton:hover {
+  background: var(--accent-hover);
+}

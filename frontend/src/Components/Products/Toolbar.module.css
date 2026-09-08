@@ -1,0 +1,62 @@
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.statCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.statNote {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tab {
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 6px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--border-input);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.tab.active {
+  border-color: #1a1815;
+  background: #1a1815;
+  color: #faf8f5;
+}
+
+.tabCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.6;
+}

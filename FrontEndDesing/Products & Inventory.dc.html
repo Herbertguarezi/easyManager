@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; background: #f7f5f2; }
+  body { font-family: "Instrument Sans", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1c1a17; }
+  a { color: oklch(0.52 0.08 176); text-decoration: none; }
+  a:hover { color: oklch(0.42 0.08 176); }
+  * { box-sizing: border-box; }
+  ::selection { background: oklch(0.86 0.05 176); }
+</style>
+</helmet>
+<div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100vh; min-width: 1040px; background: #f7f5f2; overflow: auto;">
+
+  <aside style="display: flex; flex-direction: column; background: #1a1815; color: #e8e4dd; padding: 18px 14px 14px;">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 8px 22px;">
+      <div style="width: 26px; height: 26px; border-radius: 7px; background: oklch(0.66 0.1 176); display: grid; place-items: center; font-size: 13px; font-weight: 600; color: #12211f;">K</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <span style="font-size: 13px; font-weight: 600; letter-spacing: -0.01em;">Kiln &amp; Clay</span>
+        <span style="font-size: 11px; color: #8b857c;">Store admin</span>
+      </div>
+    </div>
+
+    <nav style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: #746e65; padding: 6px 8px 6px;">Operate</div>
+      <sc-for list="{{ navOperate }}" as="item" hint-placeholder-count="4">
+        <a href="#" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 9px; border-radius: 7px; font-size: 13px; color: {{ item.color }}; background: {{ item.bg }};" style-hover="background: #26231f; color: #f2eee7;">
+          <span style="display: flex; align-items: center; gap: 10px;">
+            <span style="width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid currentColor; opacity: 0.55;"></span>
+            {{ item.label }}
+          </span>
+          <sc-if value="{{ item.badge }}" hint-placeholder-val="{{ true }}">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 2px 6px; border-radius: 20px; background: #302c26; color: #cec7bc;">{{ item.badge }}</span>
+          </sc-if>
+        </a>
+      </sc-for>
+
+      <div style="font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: #746e65; padding: 18px 8px 6px;">Grow</div>
+      <sc-for list="{{ navGrow }}" as="item" hint-placeholder-count="3">
+        <a href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px 9px; border-radius: 7px; font-size: 13px; color: #a8a29a;" style-hover="background: #26231f; color: #f2eee7;">
+          <span style="width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid currentColor; opacity: 0.55;"></span>
+          {{ item.label }}
+        </a>
+      </sc-for>
+    </nav>
+
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+      <div style="border: 1px solid #2c2823; border-radius: 9px; padding: 11px 12px; display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 11px; color: #8b857c;">Sync · Etsy, Web</span>
+        <span style="font-size: 12px; color: #e8e4dd;">Last run 6 min ago</span>
+        <div style="height: 3px; border-radius: 3px; background: #302c26;"><div style="width: 100%; height: 3px; border-radius: 3px; background: oklch(0.66 0.1 176);"></div></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 9px; padding: 6px 8px;">
+        <div style="width: 24px; height: 24px; border-radius: 50%; background: oklch(0.7 0.09 65); color: #2a1c07; display: grid; place-items: center; font-size: 11px; font-weight: 600;">MR</div>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-size: 12px;">Maya Reyes</span>
+          <span style="font-size: 11px; color: #746e65;">Owner</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main style="display: flex; flex-direction: column; min-width: 0; background: #f7f5f2;">
+    <header style="display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid #e6e1d9; background: #fbfaf8;">
+      <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+        <span style="font-size: 11px; color: #8a847b;">Catalog</span>
+        <h1 style="margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.02em;">Products &amp; inventory</h1>
+      </div>
+      <div style="flex: 1;"></div>
+      <label style="display: flex; align-items: center; gap: 8px; width: 300px; background: #fff; border: 1px solid #e2ddd4; border-radius: 8px; padding: 7px 10px;">
+        <span style="width: 12px; height: 12px; border: 1.5px solid #a49d93; border-radius: 50%;"></span>
+        <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Search products, SKUs" style="border: 0; outline: 0; font-family: inherit; font-size: 13px; width: 100%; background: transparent; color: #1c1a17;" />
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #a49d93; border: 1px solid #e2ddd4; border-radius: 4px; padding: 1px 4px;">⌘K</span>
+      </label>
+      <button style="font-family: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2ddd4; background: #fff; color: #3a352e; cursor: pointer;" style-hover="background: #f2efe9;">Import CSV</button>
+      <button style="font-family: inherit; font-size: 13px; font-weight: 500; padding: 8px 14px; border-radius: 8px; border: 1px solid oklch(0.46 0.07 176); background: oklch(0.52 0.08 176); color: #fff; cursor: pointer;" style-hover="background: oklch(0.46 0.07 176);">New product</button>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 316px; min-height: 0; flex: 1;">
+      <section style="display: flex; flex-direction: column; min-width: 0; overflow: auto; padding: 18px 24px 28px;">
+
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px;">
+          <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+            <div style="background: #fff; border: 1px solid #e6e1d9; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 7px;">
+              <span style="font-size: 11px; color: #8a847b;">{{ s.label }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; letter-spacing: -0.02em; color: {{ s.tone }};">{{ s.value }}</span>
+              <span style="font-size: 11px; color: #8a847b;">{{ s.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+            <button onClick="{{ t.onClick }}" style="font-family: inherit; font-size: 12.5px; padding: 6px 11px; border-radius: 7px; cursor: pointer; border: 1px solid {{ t.border }}; background: {{ t.bg }}; color: {{ t.color }};">
+              {{ t.label }} <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: 0.6;">{{ t.count }}</span>
+            </button>
+          </sc-for>
+          <div style="flex: 1;"></div>
+          <button style="font-family: inherit; font-size: 12.5px; padding: 6px 11px; border-radius: 7px; border: 1px dashed #d8d2c8; background: transparent; color: #6f6a63; cursor: pointer;" style-hover="border-color: #a49d93; color: #3a352e;">+ Filter</button>
+        </div>
+
+        <div style="background: #fff; border: 1px solid #e6e1d9; border-radius: 12px; overflow-x: auto;">
+          <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: oklch(0.96 0.02 176); border-bottom: 1px solid #e6e1d9;">
+              <span style="font-size: 12.5px; font-weight: 500; color: oklch(0.38 0.06 176);">{{ selectionLabel }}</span>
+              <div style="display: flex; gap: 6px;">
+                <button style="font-family: inherit; font-size: 12px; padding: 5px 10px; border-radius: 6px; border: 1px solid #cfd8d5; background: #fff; color: #3a352e; cursor: pointer;">Adjust stock</button>
+                <button style="font-family: inherit; font-size: 12px; padding: 5px 10px; border-radius: 6px; border: 1px solid #cfd8d5; background: #fff; color: #3a352e; cursor: pointer;">Change price</button>
+                <button style="font-family: inherit; font-size: 12px; padding: 5px 10px; border-radius: 6px; border: 1px solid #cfd8d5; background: #fff; color: #3a352e; cursor: pointer;">Archive</button>
+              </div>
+              <div style="flex: 1;"></div>
+              <button onClick="{{ clearSelection }}" style="font-family: inherit; font-size: 12px; padding: 5px 8px; border-radius: 6px; border: 0; background: transparent; color: #6f6a63; cursor: pointer;">Clear</button>
+            </div>
+          </sc-if>
+
+          <div style="display: grid; grid-template-columns: 34px minmax(220px, 2.4fr) 110px 150px 96px 96px 34px; min-width: 760px; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid #eeeae3; background: #fcfbf9; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: #8a847b;">
+            <span></span>
+            <span>Product</span>
+            <span>Status</span>
+            <span>Inventory</span>
+            <span style="text-align: right;">Price</span>
+            <span style="text-align: right;">30d sold</span>
+            <span></span>
+          </div>
+
+          <sc-for list="{{ rows }}" as="row" hint-placeholder-count="7">
+            <div onClick="{{ row.onOpen }}" style="display: grid; grid-template-columns: 34px minmax(220px, 2.4fr) 110px 150px 96px 96px 34px; min-width: 760px; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid #f2efe9; cursor: pointer; background: {{ row.rowBg }};" style-hover="background: #faf8f5;">
+              <span onClick="{{ row.onToggle }}" style="width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid {{ row.boxBorder }}; background: {{ row.boxBg }}; display: grid; place-items: center; color: #fff; font-size: 10px; line-height: 1;">{{ row.check }}</span>
+              <span style="display: flex; align-items: center; gap: 11px; min-width: 0;">
+                <span style="width: 36px; height: 36px; border-radius: 7px; flex: none; border: 1px solid #e6e1d9; background-color: #f3f0ea; background-image: repeating-linear-gradient(135deg, rgba(0,0,0,0.06) 0 3px, transparent 3px 7px);"></span>
+                <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                  <span style="font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ row.name }}</span>
+                  <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8a847b;">{{ row.sku }} · {{ row.variants }}</span>
+                </span>
+              </span>
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: {{ row.statusColor }};">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor;"></span>{{ row.status }}
+              </span>
+              <span style="display: flex; flex-direction: column; gap: 5px;">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: {{ row.stockColor }};">{{ row.stockLabel }}</span>
+                <span style="height: 4px; border-radius: 4px; background: #eeeae3; overflow: hidden;">
+                  <span style="display: block; height: 4px; border-radius: 4px; background: {{ row.stockColor }}; width: {{ row.stockPct }}%;"></span>
+                </span>
+              </span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; text-align: right;">{{ row.price }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; text-align: right; color: #6f6a63;">{{ row.sold }}</span>
+              <span style="text-align: center; color: #b3aca1; font-size: 14px;">›</span>
+            </div>
+          </sc-for>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 16px; font-size: 12px; color: #6f6a63;">
+            <span>{{ countLabel }}</span>
+            <span style="display: flex; gap: 6px;">
+              <button style="font-family: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2ddd4; background: #fff; color: #a49d93; cursor: pointer;">Prev</button>
+              <button style="font-family: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2ddd4; background: #fff; color: #3a352e; cursor: pointer;">Next</button>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <aside style="border-left: 1px solid #e6e1d9; background: #fbfaf8; overflow: auto; padding: 18px 20px 24px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <div style="width: 60px; height: 60px; border-radius: 9px; flex: none; border: 1px solid #e6e1d9; background-color: #f3f0ea; background-image: repeating-linear-gradient(135deg, rgba(0,0,0,0.06) 0 3px, transparent 3px 7px);"></div>
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+            <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em;">{{ detail.name }}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8a847b;">{{ detail.sku }}</span>
+            <span style="font-size: 11.5px; color: {{ detail.statusColor }};">{{ detail.status }} · {{ detail.variants }}</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button style="font-family: inherit; font-size: 12.5px; padding: 7px 10px; border-radius: 7px; border: 1px solid #e2ddd4; background: #fff; color: #3a352e; cursor: pointer;" style-hover="background: #f2efe9;">Edit</button>
+          <button style="font-family: inherit; font-size: 12.5px; padding: 7px 10px; border-radius: 7px; border: 1px solid oklch(0.46 0.07 176); background: oklch(0.52 0.08 176); color: #fff; cursor: pointer;">Restock</button>
+        </div>
+
+        <div style="border: 1px solid #e6e1d9; border-radius: 10px; background: #fff; overflow: hidden;">
+          <div style="padding: 9px 12px; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: #8a847b; border-bottom: 1px solid #f2efe9;">Stock by location</div>
+          <sc-for list="{{ detail.locations }}" as="loc" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #f6f3ee; font-size: 12.5px;">
+              <span style="color: #3a352e;">{{ loc.name }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; color: {{ loc.tone }};">{{ loc.qty }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="border: 1px solid #e6e1d9; border-radius: 10px; background: #fff; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: #8a847b;">Reorder guidance</span>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 24px; letter-spacing: -0.02em;">{{ detail.reorderQty }}</span>
+            <span style="font-size: 12px; color: #6f6a63;">units suggested</span>
+          </div>
+          <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #6f6a63; text-wrap: pretty;">{{ detail.reorderNote }}</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: #8a847b;">Recent activity</span>
+          <sc-for list="{{ detail.activity }}" as="a" hint-placeholder-count="3">
+            <div style="display: flex; gap: 10px;">
+              <span style="width: 7px; height: 7px; border-radius: 50%; background: #d8d2c8; margin-top: 5px; flex: none;"></span>
+              <span style="display: flex; flex-direction: column; gap: 1px;">
+                <span style="font-size: 12.5px; color: #3a352e;">{{ a.text }}</span>
+                <span style="font-size: 11px; color: #a49d93;">{{ a.when }}</span>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;oklch(0.52 0.08 176)&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;oklch(0.52 0.08 176)&quot;,&quot;oklch(0.5 0.11 265)&quot;,&quot;oklch(0.52 0.13 25)&quot;,&quot;oklch(0.48 0.06 120)&quot;],&quot;section&quot;:&quot;Theme&quot;}}">
+const ACCENT = "oklch(0.52 0.08 176)";
+const WARN = "oklch(0.58 0.13 62)";
+const DANGER = "oklch(0.53 0.15 25)";
+const OK = "oklch(0.5 0.09 155)";
+
+const PRODUCTS = [
+  { id: 1, name: "Speckled stoneware mug", sku: "KC-MUG-01", variants: "3 glazes", status: "Active", stock: 42, cap: 60, price: "$28.00", sold: 96 },
+  { id: 2, name: "Ridged dinner plate, 10\"", sku: "KC-PLT-10", variants: "2 glazes", status: "Active", stock: 8, cap: 48, price: "$36.00", sold: 61 },
+  { id: 3, name: "Matte serving bowl", sku: "KC-BWL-04", variants: "1 glaze", status: "Active", stock: 0, cap: 30, price: "$54.00", sold: 22 },
+  { id: 4, name: "Hand-thrown vase, tall", sku: "KC-VSE-02", variants: "4 glazes", status: "Active", stock: 17, cap: 40, price: "$88.00", sold: 14 },
+  { id: 5, name: "Espresso cup set of 2", sku: "KC-ESP-2P", variants: "2 glazes", status: "Draft", stock: 24, cap: 36, price: "$42.00", sold: 0 },
+  { id: 6, name: "Butter keeper", sku: "KC-BTR-01", variants: "1 glaze", status: "Active", stock: 31, cap: 40, price: "$46.00", sold: 19 },
+  { id: 7, name: "Salt cellar, lidded", sku: "KC-SLT-03", variants: "3 glazes", status: "Active", stock: 5, cap: 45, price: "$32.00", sold: 38 },
+  { id: 8, name: "Studio seconds bundle", sku: "KC-SEC-BX", variants: "1 size", status: "Archived", stock: 2, cap: 12, price: "$65.00", sold: 4 }
+];
+
+const FILTERS = {
+  All: () => true,
+  Active: p => p.status === "Active",
+  Low: p => p.stock > 0 && p.stock <= 10,
+  Out: p => p.stock === 0,
+  Drafts: p => p.status === "Draft"
+};
+
+class Component extends DCLogic {
+  state = { tab: "All", query: "", selected: [], openId: 2 };
+
+  visible() {
+    const q = this.state.query.trim().toLowerCase();
+    return PRODUCTS.filter(FILTERS[this.state.tab] || FILTERS.All)
+      .filter(p => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+  }
+
+  toggle(id, e) {
+    if (e) e.stopPropagation();
+    this.setState(s => ({ selected: s.selected.includes(id) ? s.selected.filter(x => x !== id) : s.selected.concat(id) }));
+  }
+
+  stockMeta(p) {
+    if (p.stock === 0) return { color: DANGER, label: "Out of stock" };
+    if (p.stock <= 10) return { color: WARN, label: p.stock + " left · low" };
+    return { color: OK, label: p.stock + " in stock" };
+  }
+
+  renderVals() {
+    const accent = this.props.accent ?? ACCENT;
+    const rows = this.visible();
+    const sel = this.state.selected;
+    const lowCount = PRODUCTS.filter(FILTERS.Low).length;
+    const outCount = PRODUCTS.filter(FILTERS.Out).length;
+    const open = PRODUCTS.find(p => p.id === this.state.openId) || rows[0] || PRODUCTS[0];
+    const openMeta = this.stockMeta(open);
+
+    const tabDefs = [
+      ["All", "All", PRODUCTS.length],
+      ["Active", "Active", PRODUCTS.filter(FILTERS.Active).length],
+      ["Low", "Low stock", lowCount],
+      ["Out", "Out of stock", outCount],
+      ["Drafts", "Drafts", PRODUCTS.filter(FILTERS.Drafts).length]
+    ];
+
+    return {
+      query: this.state.query,
+      onQuery: e => this.setState({ query: e.target.value }),
+      navOperate: [
+        { label: "Overview", badge: "", color: "#a8a29a", bg: "transparent" },
+        { label: "Orders", badge: "12", color: "#a8a29a", bg: "transparent" },
+        { label: "Products", badge: "", color: "#f7f4ee", bg: "#26231f" },
+        { label: "Customers", badge: "", color: "#a8a29a", bg: "transparent" }
+      ],
+      navGrow: [{ label: "Analytics" }, { label: "Discounts" }, { label: "Settings" }],
+      stats: [
+        { label: "Active listings", value: "42", note: "3 added this week", tone: "#1c1a17" },
+        { label: "Inventory value", value: "$18.4k", note: "at cost, all locations", tone: "#1c1a17" },
+        { label: "Low stock", value: String(lowCount), note: "reorder within 7 days", tone: WARN },
+        { label: "Out of stock", value: String(outCount), note: "blocking 4 orders", tone: DANGER }
+      ],
+      tabs: tabDefs.map(([key, label, count]) => {
+        const on = this.state.tab === key;
+        return {
+          label, count,
+          onClick: () => this.setState({ tab: key }),
+          bg: on ? "#1a1815" : "#fff",
+          color: on ? "#faf8f5" : "#3a352e",
+          border: on ? "#1a1815" : "#e2ddd4"
+        };
+      }),
+      rows: rows.map(p => {
+        const m = this.stockMeta(p);
+        const checked = sel.includes(p.id);
+        return {
+          name: p.name, sku: p.sku, variants: p.variants, price: p.price, sold: p.sold || "—",
+          status: p.status,
+          statusColor: p.status === "Active" ? OK : p.status === "Draft" ? "#8a847b" : "#a49d93",
+          stockLabel: m.label, stockColor: m.color,
+          stockPct: Math.max(3, Math.round((p.stock / p.cap) * 100)),
+          check: checked ? "✓" : "",
+          boxBg: checked ? accent : "#fff",
+          boxBorder: checked ? accent : "#cfc9be",
+          rowBg: p.id === this.state.openId ? "#faf8f5" : "#fff",
+          onToggle: e => this.toggle(p.id, e),
+          onOpen: () => this.setState({ openId: p.id })
+        };
+      }),
+      hasSelection: sel.length > 0,
+      selectionLabel: sel.length + (sel.length === 1 ? " product selected" : " products selected"),
+      clearSelection: () => this.setState({ selected: [] }),
+      countLabel: "Showing " + rows.length + " of " + PRODUCTS.length + " products",
+      detail: {
+        name: open.name, sku: open.sku, variants: open.variants,
+        status: open.status, statusColor: openMeta.color,
+        locations: [
+          { name: "Studio shelf", qty: String(Math.max(0, open.stock - 3)), tone: openMeta.color },
+          { name: "Market crate", qty: "3", tone: "#3a352e" },
+          { name: "Committed to orders", qty: "−4", tone: WARN }
+        ],
+        reorderQty: String(Math.max(12, open.cap - open.stock)),
+        reorderNote: "Sells about " + Math.round(open.sold / 4) + " a week. Kiln turnaround is 9 days, so start the next batch now to avoid a stockout.",
+        activity: [
+          { text: "Price updated to " + open.price, when: "Yesterday · Maya" },
+          { text: "12 units received from kiln batch 44", when: "3 days ago" },
+          { text: "Synced to Etsy listing", when: "6 days ago" }
+        ]
+      }
+    };
+  }
+}
+
+</script>
+</body>
+</html>

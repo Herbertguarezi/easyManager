@@ -10,22 +10,33 @@ services:
       MYSQL_DATABASE: easymanager
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - springnet
 
   easymanager_api:
-    build: 
+    build:
       context: ./easymanager
       dockerfile: Dockerfile.dev
     container_name: springboot-app
     depends_on:
-      - mariadb_manager
+      mariadb_manager:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb_manager:3306/easymanager
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET}
+      MARKETPLACE_ENCRYPTION_KEY: ${MARKETPLACE_ENCRYPTION_KEY}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      EMAIL_TOKEN_SECRET: ${EMAIL_TOKEN_SECRET}
     networks:
       - springnet
   

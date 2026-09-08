@@ -1,0 +1,76 @@
+# ============================================================
+# Segredos e configuração sensível — NUNCA versionar
+# ============================================================
+.env
+.env.*
+!.env.example
+*secret*
+*credentials*
+**/application-prod.properties
+**/application-production.properties
+**/shopee-tokens.json
+
+# ============================================================
+# Backend — Java / Maven / Spring Boot
+# ============================================================
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
+
+# Uploads de produto — gerado em runtime, não deve ser versionado
+# (ver docs/software-engineering.md, Lacuna Conhecida #4: hoje está
+# commitado por engano — remover do controle de versão com
+# `git rm -r --cached easymanager/uploads` além de adicionar aqui)
+easymanager/uploads/*
+!easymanager/uploads/.gitkeep
+
+# ============================================================
+# Frontend — Node / React / Vite
+# ============================================================
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+frontend/.vite/
+frontend/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================
+# Docker
+# ============================================================
+docker-compose.override.yml
+
+# ============================================================
+# IDEs / editores
+# ============================================================
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# ============================================================
+# Sistema operacional
+# ============================================================
+.DS_Store
+Thumbs.db
+
+# ============================================================
+# Logs
+# ============================================================
+*.log
+logs/
+
+# ============================================================
+# Arquivos soltos já identificados como não pertencentes ao app
+# (ver docs/software-engineering.md, Lacuna Conhecida #12 na v3.0)
+# Descomente se decidir remover em vez de realocar:
+# teste.js
+# easymanager/uploads/src/Main.java
+# FrontEndDesing/

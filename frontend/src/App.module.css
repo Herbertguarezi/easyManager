@@ -1,0 +1,29 @@
+.shell {
+  display: flex;
+  height: 100vh;
+  min-width: 1040px;
+  background: var(--bg);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  background: var(--bg);
+}
+
+.content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.listPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 18px 24px 28px;
+}
