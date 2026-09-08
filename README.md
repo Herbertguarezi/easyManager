@@ -44,12 +44,21 @@ Este é um sistema completo de gerenciamento de estoque, desenvolvido com foco e
    cd easyManager
    ```
 
-2. Crie um arquivo `.env` na raiz com o seguinte conteúdo:
+2. Crie um arquivo `.env` na raiz (esse arquivo **não é versionado** — nunca commite `.env` com valores reais) com as seguintes variáveis:
 
    ```env
    DB_USER=usuario
    DB_PASSWORD=senha
+   CORS_ALLOWED_ORIGIN=http://localhost:5173
+   JWT_SECRET=troque-por-um-segredo-aleatorio
+   MARKETPLACE_ENCRYPTION_KEY=troque-por-um-segredo-aleatorio
+   WEBHOOK_SECRET=troque-por-um-segredo-aleatorio
+   EMAIL_TOKEN_SECRET=troque-por-um-segredo-aleatorio
    ```
+
+   Cada segredo (`JWT_SECRET`, `MARKETPLACE_ENCRYPTION_KEY`, `WEBHOOK_SECRET`,
+   `EMAIL_TOKEN_SECRET`) deve ser um valor distinto — não reutilize a mesma
+   chave para finalidades diferentes.
 
 3. Suba os containers:
 
