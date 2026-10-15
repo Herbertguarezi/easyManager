@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/application-prod.properties)",
+      "Read(./**/application-production.properties)",
+      "Read(./**/*secret*)",
+      "Read(./**/*credentials*)"
+    ],
+    "additionalDirectories": ["../docs/"]
+  },
+  "defaultMode": "acceptEdits"
+}

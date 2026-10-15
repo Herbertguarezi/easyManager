@@ -1,5 +1,7 @@
 package com.guarezi.easymanager.products.presentation;
 
+import com.guarezi.easymanager.auth.application.ports.out.AccessTokenIssuer;
+import com.guarezi.easymanager.billing.application.ports.in.EntitlementService;
 import com.guarezi.easymanager.products.application.ports.in.ProductUseCases;
 import com.guarezi.easymanager.products.domain.Product;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,20 @@ class ProductControllerTest {
 
     @MockitoBean
     private ProductUseCases productUseCases;
+
+    // Fase 1.5, Block 0: JwtAuthenticationFilter is a global filter bean
+    // (registered on every request, not scoped to a specific controller),
+    // so @WebMvcTest wires it in here too and needs its dependency
+    // satisfied — even though this slice never exercises auth itself.
+    @MockitoBean
+    private AccessTokenIssuer accessTokenIssuer;
+
+    // Fase 1.5, Block C: same reasoning as AccessTokenIssuer above —
+    // RequiresModuleInterceptor is a global WebMvcConfigurer-registered
+    // interceptor, wired into every @WebMvcTest slice regardless of the
+    // controllers list.
+    @MockitoBean
+    private EntitlementService entitlementService;
 
     @Test
     void listProductsReturnsAllProducts() throws Exception {

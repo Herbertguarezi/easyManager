@@ -30,8 +30,16 @@ cat > "$OUT_CLAUDE_MD" << 'EOF'
 Leia, nesta ordem:
 1. docs/software-engineering.md — decisões de arquitetura e requisitos funcionais
 2. docs/arquitetura-banco-de-dados.md — schema, tipos, constraints, migrations
-3. docs/glossario-traducao.md — mapeamento PT→EN de nomenclatura de código
-4. PROGRESS.md — o que já foi feito e o que falta
+3. docs/regras-negocio.md — regras de negócio numeradas (RN-XXX), invariantes
+   e a máquina de estados da assinatura (§13) — é a fonte de verdade para
+   qualquer coisa sobre planos, trial, cobrança, tokens ou entitlements
+4. docs/glossario-traducao.md — mapeamento PT→EN de nomenclatura de código
+5. PROGRESS.md — o que já foi feito e o que falta
+
+Se uma tarefa tocar em assinatura, plano, trial, cobrança, tokens ou
+qualquer verificação de `EntitlementService`, releia o RN-XXX relevante
+em docs/regras-negocio.md antes de implementar — não decida a regra de
+negócio a partir do código existente ou por inferência.
 
 ## Processo
 - Desenvolvimento é orientado a testes (TDD): para cada item, escreva o
@@ -118,7 +126,12 @@ echo ""
 echo "Falta copiar para dentro de docs/ (baixados anteriormente):"
 echo "  docs/software-engineering.md"
 echo "  docs/arquitetura-banco-de-dados.md"
+echo "  docs/regras-negocio.md"
 echo "  docs/glossario-traducao.md"
+echo ""
+echo "Opcionais em docs/ (contexto de apoio, não são fonte de verdade sozinhos):"
+echo "  docs/precificacao.md      (prosa original — regras-negocio.md já extrai o que importa)"
+echo "  docs/diagramas-uml.md     (diagramas — não duplicam nada dos outros documentos)"
 echo ""
 echo "E para a raiz do projeto:"
 echo "  PROGRESS.md"

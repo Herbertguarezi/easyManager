@@ -1,10 +1,11 @@
 # Easy Manager — Documento de Engenharia de Software
 
-**Versão:** 4.4 (revisão de segurança: correção de IDOR na exportação, tokens de auth hasheados, JWT/CORS/CSRF endurecidos, reforço estrutural de multi-tenancy)
+**Versão:** 5.0 (Entitlements sincronizado com o modelo comercial de
+planos por módulo, combo, trial e cota de tokens)
 **Data:** Setembro/2026
-**Status:** Documento de arquitetura-alvo consolidado. Nenhum código dos bounded contexts novos foi escrito ainda.
+**Status:** Documento de arquitetura-alvo consolidado. Fase 0 do roadmap (§14) implementada — ver PROGRESS.md.
 
-**Nota sobre esta versão:** revisão de segurança de ponta a ponta sobre as versões v4.0–v4.3. Encontrou e corrigiu uma falha de IDOR introduzida pela própria v4.3 (endpoint de exportação sem checagem de ownership), armazenamento em texto puro de tokens de confirmação de email/reset de senha, ausência de defesa contra confusão de algoritmo JWT, configuração incompleta de CORS+cookie, e dependência exclusiva de convenção de código (sem reforço no ORM) para o isolamento multi-tenant. Também adiciona política de senha, proteção contra enumeração de conta, MFA para ADMIN e neutralização de injeção de fórmula CSV no documento exportado. Nenhuma decisão funcional anterior foi revertida — esta versão fecha brechas de segurança em cima do que já estava definido.
+**Nota sobre esta versão:** a v4.0 desenhou o *o quê*; a v4.1 endureceu o *como*; a v4.2 fechou pendências; a v4.3 corrigiu para exportação manual (não integração automática); a v4.4 foi revisão de segurança; a v4.5 introduziu a estrutura de módulos/entitlements com um único plano "Full" provisório. A **v5.0 substitui esse provisório**: reescreve §4.6 em cima do modelo comercial real (`easy-manager-precificacao.md`) — planos por módulo×Stores, combo, trial com limites próprios por módulo, cota de tokens dinâmica, régua de inadimplência e retenção — sincronizado com `easy-manager-arquitetura-banco-de-dados.md` v2.0 (Etapa C do plano de execução). Nenhuma decisão funcional dos bounded contexts PRODUCTS/Ads Analyzer em si foi revertida — só a camada de Auth/Entitlements que os governa.
 
 ---
 
@@ -274,6 +275,139 @@ Mantidos RF-AU01–RF-AU09 da v4.0, acrescidos de:
 | RF-AU17 | Contas `ADMIN` exigem MFA (segundo fator) além de senha, dado o escopo de poder do papel (§3.2 da v4.0) |
 | RF-AU18 | `email_confirmation_tokens.token` e `password_reset_tokens.token` são armazenados como hash, nunca em texto puro — mesma regra já aplicada a `refresh_tokens.token_hash` |
 
+### 4.6 Módulos e Direitos de Uso — Entitlements (reescrito — v5.0,
+sincronizado com `easy-manager-precificacao.md` e
+`easy-manager-arquitetura-banco-de-dados.md` v2.0, Etapa C10 do plano
+de execução)
+
+**O que mudou desde a v4.5:** não existe mais um plano único "Full"
+liberando tudo. Um seller pode ter **0, 1 ou 2 assinaturas de módulo**
+independentes (`PRODUCTS` e/ou `ADS_ANALYZER`), cada uma com seu
+próprio plano, ciclo, estado (máquina de 9 estados,
+`easy-manager-regras-negocio.md` §13), Stores ativas e — no caso do
+ADS_ANALYZER — saldo de tokens. A checagem de entitlement deixa de ser
+um único booleano ("tem o módulo?") e passa a ser uma composição de
+várias perguntas independentes.
+
+**Isso continua não sendo papel (Role).** `ADMIN`/`SELLER` responde
+"que tipo de usuário é esse". Entitlement responde "o que esse seller
+específico pode fazer agora, nesse módulo, com essa Store". As duas
+camadas continuam independentes e se somam à autorização já
+existente:
+
+```
+Autenticação + Role + Tenant (ownership) + Entitlement de módulo
+```
+
+**Módulos (enum fixo no código, não tabela — mapeiam os bounded
+contexts já existentes):**
+
+| Módulo | Escopo |
+|---|---|
+| `PRODUCTS` | Produtos, variações, vínculo produto↔marketplace (`ProductMarketplaceLink`), estoque (`StockMovement`) e webhook de baixa automática |
+| `ADS_ANALYZER` | Coleta, snapshot, relatório via IA (todo o bounded context Ads Analyzer, §9) |
+
+**Fora de qualquer módulo, sempre liberado a todo seller:** Auth,
+cadastro/gestão de Store (conectar uma loja, OAuth, credencial) — é
+infraestrutura básica da qual os dois módulos dependem, não faz
+sentido gatear.
+
+**Modelo de dados** (`easy-manager-arquitetura-banco-de-dados.md` §3,
+§4 e §9 — Etapa C1–C8b):
+
+```
+sellers (sem plan_id) ──< subscriptions >── plans (module × tier, 6 linhas fixas)
+                              │
+                              ├──< store_module_activation >── stores
+                              ├──< token_usage                (ADS_ANALYZER)
+                              ├──< token_packages              (ADS_ANALYZER)
+                              ├──< payment_attempts
+                              └──< trial_contestations, risk_signals
+```
+
+Cada linha de `subscriptions` é um par seller×módulo, com `status`
+sendo um dos 9 estados da máquina. Não existe mais "o plano do
+seller" no singular — existe "a assinatura do seller nesse módulo".
+
+**`EntitlementService` — contrato (Etapa 4 do checklist geral):**
+
+```java
+public interface EntitlementService {
+    boolean canUseModule(UUID sellerId, Module module);
+    int getStoreLimit(UUID sellerId, Module module);
+    boolean canCreateStore(UUID sellerId);
+    boolean canActivateStore(UUID sellerId, UUID storeId, Module module);
+    List<UUID> getActiveStores(UUID sellerId, Module module);
+    long getTokenBalance(UUID sellerId);
+    boolean canExecuteAnalysis(UUID sellerId, UUID storeId);
+    boolean canBuyExtraPackage(UUID sellerId);
+    SubscriptionStatus getSubscriptionStatus(UUID sellerId, Module module);
+    boolean isInTrial(UUID sellerId, Module module);
+    boolean isPastDue(UUID sellerId, Module module);
+    boolean isInRetention(UUID sellerId, Module module);
+    boolean canCreateProduct(UUID sellerId, int currentProductCount);
+}
+```
+
+**`canCreateProduct` — achado na revisão cruzada final (Etapa C11),
+assinatura ajustada na implementação (Block C da Fase 1.5):** o teto
+de 15 produtos do trial de PRODUCTS (RN-PROD-002/003) não é "módulo
+liberado ou não" — é um limite de volume, diferente de qualquer outro
+método acima. Método dedicado: se `isInTrial(PRODUCTS)`,
+`currentProductCount < 15`; se plano pago, sempre `true` (não há teto
+de produtos em plano pago, só de Stores). Recebe a contagem atual como
+parâmetro, em vez de contar direto no banco (`COUNT(products WHERE
+seller_id=?)`), porque `products.seller_id` só existe a partir da
+Fase 3 — nesta fase (1.5) não há como o `EntitlementService` consultar
+a tabela de produtos; `ProductService.criarProduto` (Fase 3) passa a
+contagem real antes de chamar. Chamado pelo `ProductService` antes de
+criar um produto, não pela anotação `@RequiresModule` (que só resolve
+módulo/execução, não volume).
+
+| Método | Lógica (RN-XXX) |
+|---|---|
+| `canUseModule` | `subscriptions.status` para aquele seller×módulo está em `{TRIAL_ATIVO, ATIVO, INADIMPLENTE, CANCELAMENTO_SOLICITADO}`. `TRIAL_RESTRITO`, `TRIAL_ESGOTADO`, `RETENCAO`, `EXCLUIDO`, `ARREPENDIDO` (9º estado, Block B da Fase 1.5 — mesmo balaio de `RETENCAO`/`EXCLUIDO`) ou ausência de linha (`SEM_ASSINATURA`) → `false`. `INADIMPLENTE` ainda conta como uso liberado (RN-INAD-001); `CANCELAMENTO_SOLICITADO` idem, até o fim do ciclo (RN-SUB-007) |
+| `getStoreLimit` | `plans.stores_limit` do plano vigente da assinatura daquele módulo; se em trial de PRODUCTS, fixo em 1 (RN-PROD-002); se em trial de ADS_ANALYZER, fixo em 1 — mesmo teto do seu próprio Básico pago, não emprestado de PRODUCTS (RN-TRIAL-009) |
+| `canCreateStore` | total de Stores cadastradas (não excluídas) `<` o **maior** `stores_limit` entre os módulos assinados (RN-STORE-001) |
+| `canActivateStore` | `COUNT(store_module_activation.ativo=true)` daquele módulo `<` `getStoreLimit` (RN-STORE-002) |
+| `getActiveStores` | `SELECT store_id FROM store_module_activation WHERE module=? AND ativo=true` |
+| `getTokenBalance` | `plans.cota_tokens_mes_atual` (ajustada por upgrade/downgrade, RN-TOKEN-004) `+ SUM(token_packages` do ciclo`) − SUM(token_usage.tokens_total` do ciclo`)` — trial usa o pool isolado de 60.000 (RN-TRIAL-004), nunca este cálculo |
+| `canExecuteAnalysis` | `canUseModule(ADS_ANALYZER)` **e** Store ativa nesse módulo **e** saldo suficiente pra não ultrapassar a cota/pool do ciclo (RN-ADS-003, RN-TRIAL-005 — corta antes de rodar, não depois) |
+| `canBuyExtraPackage` | `status = 'ATIVO'` (não em trial, não bloqueado) — pacote avulso não existe fora de plano pago ativo |
+| `getSubscriptionStatus` | leitura direta de `subscriptions.status` |
+| `isInTrial` | `status IN ('TRIAL_ATIVO','TRIAL_RESTRITO','TRIAL_ESGOTADO')` |
+| `isPastDue` | `status = 'INADIMPLENTE'` |
+| `isInRetention` | `status = 'RETENCAO'` |
+| `canCreateProduct` | Se `isInTrial(PRODUCTS)`: `currentProductCount < 15` (RN-PROD-003, contagem passada pelo chamador — ver nota acima). Se plano pago: sempre `true` (sem teto de produtos) |
+
+**Mecanismo de checagem — anotação + interceptor, agora resolvendo
+contra o novo modelo:**
+
+```java
+@RequiresModule(Module.ADS_ANALYZER)
+@GetMapping("/ads/analysis/{storeId}")
+```
+
+O aspecto (AOP) intercepta a chamada, resolve `sellerId` do
+autenticado, chama `EntitlementService.canUseModule(...)` — e, para
+endpoints de execução especificamente, também
+`canExecuteAnalysis(...)` (checagem composta: módulo liberado **+**
+Store ativa **+** saldo). Responde `403` antes de chegar no método se
+qualquer uma dessas checagens falhar.
+
+**Requisitos funcionais (substituem RF-AU19–RF-AU22 da v4.5):**
+
+| ID | Descrição |
+|---|---|
+| RF-AU19 | Cadastro de seller **não** atribui plano nem assinatura — nasce sem `subscriptions`. Primeira ação (iniciar trial ou assinar) é que cria a primeira linha |
+| RF-AU20 | Endpoints de `PRODUCTS`/`ADS_ANALYZER` são anotados com o módulo requerido, verificado via `EntitlementService.canUseModule` antes da execução |
+| RF-AU21 | Endpoints de conexão de Store (OAuth, credencial) nunca são gateados por módulo |
+| RF-AU22 | Seller sem o módulo requerido, ou sem Store ativa, ou sem saldo, recebe `403`, não `404` (o recurso existe e é dele, só não está liberado — não há razão de segurança pra esconder essa informação, mesmo critério da v4.5) |
+| RF-AU23 | Endpoints de execução de análise (`POST /ads/analysis/...`) usam a checagem composta `canExecuteAnalysis`, não só `canUseModule` — bloquear só por módulo deixaria passar execução sem Store ativa ou sem saldo |
+| RF-AU24 | Toda transição de `subscriptions.status` passa por um único service (`SubscriptionStateMachine` ou nome equivalente) que valida a transição contra a tabela de §13.3 de `easy-manager-regras-negocio.md` — nunca um `UPDATE subscriptions SET status = ...` direto em outro lugar do código |
+| RF-AU25 | `ProductService.criarProduto` chama `EntitlementService.canCreateProduct` antes de persistir — teto de 15 produtos do trial (RN-PROD-002/003), sem teto correspondente em plano pago |
+| RF-AU26 | Pedido de upgrade/downgrade é rejeitado com `422` se `subscriptions.ciclo != 'MENSAL'` e a assinatura não estiver perto do vencimento — RN-SUB-004 bloqueia troca de plano em ciclo antecipado, não só troca de ciclo; achado na revisão da Etapa A/B (achado adicional em C11) |
+
 ---
 
 ## 5. Bounded Context: Sellers & Stores (revisado)
@@ -429,65 +563,22 @@ limite.
 | RF-A18 | Execução manual é limitada a 1x por dia por Store, independente da execução agendada |
 | RF-A19 | `POST /ads/manual` está sob rate limiting |
 
-### 8.6 Exportação de dados brutos para análise externa, por Store (revisado)
+### 8.6 Exportação de dados brutos — **removida (v5.0)**
 
-**Correção de escopo em relação ao rascunho anterior desta versão:** não
-se trata de integração automática com outra IA (nada de chamada HTTP a
-um provedor externo, nem armazenamento de chave de terceiro). É mais
-simples e não introduz nenhuma superfície de segurança nova: o **Easy
-Manager gera um documento de texto** com os dados já coletados, o seller
-baixa esse documento e leva manualmente para a IA de sua preferência,
-fora do sistema.
+Esta seção existia até a v4.5, descrevendo um endpoint
+`GET /ads/export/{storeId}/{data}` que gerava um documento de texto
+com os dados brutos já coletados, pra uso manual fora do sistema
+(RF-A20–A25). A precificação (`easy-manager-precificacao.md`, RN-TRIAL-007)
+decidiu **remover essa funcionalidade** — a cota gratuita de 3
+execuções (RN-TRIAL-001) passou a ser o único mecanismo de trial do
+ADS_ANALYZER, substituindo totalmente a exportação. Como não sobrou
+nenhum uso pago pra ela (o trial era o único motivo dela existir), o
+endpoint, o fluxo e os RF-A20–A25 saem do escopo do produto —
+nenhuma implementação necessária.
 
-**Fluxo:** `GET /ads/export/{storeId}/{data}` → **valida que `storeId`
-pertence ao seller autenticado (§3.2, mesma regra de ownership de todo o
-resto do sistema — nenhuma exceção para este endpoint)** → sistema busca
-o `AdSnapshot`/`SkuMetric` já salvo daquela Store/data (o mesmo dado que
-já existe da coleta diária, sem precisar de nova chamada à Shopee) →
-monta um documento de texto simples (Markdown ou `.txt`) com os dados
-brutos consolidados por SKU (vendas, unidades, gasto de anúncio, cliques,
-impressões, ACOS) → retorna para download.
-
-**Vulnerabilidade corrigida nesta revisão:** o desenho original desta
-seção (v4.3) não declarava a checagem de ownership sobre `storeId`, o
-que teria permitido a qualquer seller autenticado trocar o UUID na URL e
-baixar dados de vendas/anúncio de uma Store de outro seller (IDOR). A
-regra de ownership de §3.2 se aplica aqui como a qualquer outro endpoint
-— não há exceção para leitura "só de exportação".
-
-**Penalidade mantida, agora pelo motivo certo:** o documento exportado
-contém apenas os **dados brutos do dia solicitado** — sem a comparação
-com o snapshot do dia anterior (RF-A06) e sem o vínculo produto/estoque
-(RF-A11). Essas duas informações vivem dentro do `AdAnalysisService` e do
-prompt determinístico da Anthropic; gerar um documento textual simples
-para uso manual fora do sistema não tenta reproduzir esse enriquecimento.
-
-**O que isso NÃO precisa:**
-- Nenhuma tabela de credencial de terceiro (`external_ai_configs` foi
-  removida do desenho).
-- Nenhuma chave de criptografia nova (`EXTERNAL_AI_ENCRYPTION_KEY` não é
-  necessária).
-- Nenhum adapter novo de IA (`AiAnalysisClient`/`AnthropicApiAdapter`
-  seguem intocados — a exportação não passa por eles).
-- Nenhuma alteração em `ad_reports` (o relatório gerado pela Anthropic
-  continua sendo uma coisa; o documento exportado é outra, gerada sob
-  demanda, não persistida).
-
-**Custo e limites:** como a exportação só lê dado já coletado (não
-dispara nova chamada à Shopee nem à Anthropic), **não está sujeita ao
-limite de 1 execução manual por dia** (RF-A18) — esse limite protege
-custo de coleta/análise, que a exportação não consome.
-
-### 8.7 Requisitos funcionais da exportação
-
-| ID | Descrição |
-|---|---|
-| RF-A20 | Seller pode exportar, sob demanda, um documento de texto com os dados brutos consolidados (por SKU: vendas, unidades, gasto de anúncio, cliques, impressões, ACOS) de uma Store em uma data específica |
-| RF-A21 | O documento exportado não inclui comparação com snapshot anterior nem vínculo produto/estoque |
-| RF-A22 | A exportação é gerada a partir do snapshot já salvo — não dispara nova coleta na Shopee nem chamada à Anthropic |
-| RF-A23 | A exportação não é limitada pelo RF-A18 (não consome custo de coleta/análise) |
-| RF-A24 | `storeId` do endpoint de exportação é validado contra o seller autenticado antes de qualquer leitura (ownership obrigatório, sem exceção) |
-| RF-A25 | Campos de origem externa (nome de produto, SKU) que comecem com `=`, `+`, `-` ou `@` são neutralizados (prefixados com aspas simples ou caractere de escape) antes de entrar no documento exportado, prevenindo injeção de fórmula caso o seller abra o arquivo como CSV no Excel |
+**Nenhuma migration afetada:** a seção já não introduzia tabela
+própria (lia direto de `ad_snapshots`/`sku_metrics`), então não há
+nada pra reverter no schema.
 
 ---
 
@@ -836,7 +927,16 @@ correlation ID.
 
 **Fase 1 — Auth**
 Cadastro; confirmação de email; login; JWT; refresh token rotation;
-reset de senha; rate limiting; RBAC.
+reset de senha; rate limiting; RBAC. Cadastro **não** atribui plano —
+seller nasce sem assinatura (RF-AU19).
+
+**Fase 1.5 — Assinaturas, Planos & Entitlements**
+`plans`/`subscriptions`/`store_module_activation`/`token_usage`/pacotes
+avulsos/`payment_attempts`/`refunds`/anti-abuso (§4.6, migrations
+`V10`–`V19`); `SubscriptionStateMachine` (máquina de 9 estados,
+`docs/regras-negocio.md` §13); `EntitlementService` (13 métodos);
+jobs de câmbio, cobrança, retenção e expiração de trial. Pré-requisito
+de tudo a partir daqui — Fases 2–7 checam entitlement em algum ponto.
 
 **Fase 2 — Sellers/Stores**
 Seller; Store; OAuth Shopee; criptografia dos tokens; renovação de

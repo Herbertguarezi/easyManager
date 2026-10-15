@@ -13,8 +13,11 @@ Nomes de tabela já em inglês nos documentos (`sellers`, `stores`,
 `sku_metrics`, `ad_reports`, `analysis_runs`, `refresh_tokens`,
 `email_confirmation_tokens`, `password_reset_tokens`,
 `admin_audit_log`, `product_variations`, `product_marketplace_links`,
-`store_credentials`, `reconciliation_alerts`) permanecem como estão —
-só as colunas e valores de enum abaixo mudam.
+`store_credentials`, `reconciliation_alerts`, `plans`, `subscriptions`,
+`payment_attempts`, `refunds`, `trial_contestations`, `risk_signals`,
+`token_usage`, `token_package_plans`, `token_packages`,
+`api_pricing_history`, `exchange_rate_snapshots`) permanecem como
+estão — só as colunas e valores de enum abaixo mudam.
 
 ## Colunas comuns (todas as tabelas)
 
@@ -30,9 +33,178 @@ só as colunas e valores de enum abaixo mudam.
 |---|---|
 | `senha_hash` | `password_hash` |
 | `email_confirmado_em` | `email_confirmed_at` |
+| `cnpj_verificado_em` | `cnpj_verified_at` |
 | status `PENDENTE` | `PENDING` |
 | status `ATIVO` | `ACTIVE` |
 | status `INATIVO` | `INACTIVE` |
+
+(`cnpj` é sigla própria — não traduzir.)
+
+## `plans` (v2.0 — Fase 1.5, redesenhada; substitui a entrada v4.5 abaixo)
+
+| PT | EN |
+|---|---|
+| `nome` | `name` |
+| `preco_mensal` | `monthly_price` |
+| `margem_alvo` | `target_margin` |
+| `cota_tokens_mes_atual` | `current_month_token_quota` |
+
+(`module` e seus valores `PRODUCTS`/`ADS_ANALYZER`, `stores_limit` já em
+inglês, não traduzir. `plan_modules` e `sellers.plan_id` da v4.5 foram
+removidos no redesenho v2.0 — ver `docs/arquitetura-banco-de-dados.md`
+§2 — não existem mais no schema, entrada mantida abaixo só como
+histórico.)
+
+## `plans` / `plan_modules` (v4.5 — obsoleto, não existe mais no schema)
+
+| PT | EN |
+|---|---|
+| `name` | `name` (já em inglês) |
+| `module` | `module` (já em inglês) |
+| valores do módulo: `PRODUCTS`, `ADS_ANALYZER` | já em inglês, não traduzir |
+| `plan_id` (em `sellers`) | `plan_id` (já em inglês) |
+
+## `api_pricing_history`
+
+| PT | EN |
+|---|---|
+| `preco_input_usd_milhao` | `input_price_usd_per_million` |
+| `preco_output_usd_milhao` | `output_price_usd_per_million` |
+| `vigente_desde` | `effective_from` |
+| `atualizado_por` | `updated_by` |
+
+## `exchange_rate_snapshots`
+
+| PT | EN |
+|---|---|
+| `usd_brl` | `usd_brl_rate` |
+| `data_referencia` | `reference_date` |
+
+## `subscriptions`
+
+| PT | EN |
+|---|---|
+| `ciclo` | `billing_cycle` |
+| `data_aniversario` | `anniversary_date` |
+| `data_inicio_ciclo_atual` | `current_cycle_start_date` |
+| `data_fim_ciclo_atual` | `current_cycle_end_date` |
+| `data_inicio_periodo_tokens_atual` | `current_token_period_start_date` |
+| `data_fim_periodo_tokens_atual` | `current_token_period_end_date` |
+| `data_cancelamento_solicitado` | `cancellation_requested_at` |
+| `data_bloqueio` | `blocked_at` |
+| `data_exclusao_prevista` | `scheduled_deletion_date` |
+| `data_expiracao_trial` | `trial_expires_at` |
+| status `TRIAL_ATIVO` | `TRIAL_ACTIVE` |
+| status `TRIAL_RESTRITO` | `TRIAL_RESTRICTED` |
+| status `TRIAL_ESGOTADO` | `TRIAL_EXHAUSTED` |
+| status `ATIVO` | `ACTIVE` |
+| status `INADIMPLENTE` | `PAST_DUE` |
+| status `CANCELAMENTO_SOLICITADO` | `CANCELLATION_REQUESTED` |
+| status `RETENCAO` | `RETENTION` |
+| status `EXCLUIDO` | `DELETED` |
+| status `ARREPENDIDO` (9º estado — achado na revisão do Block B; ver PROGRESS.md) | `WITHDRAWN` |
+| ciclo `MENSAL` | `MONTHLY` |
+| ciclo `TRIMESTRAL` | `QUARTERLY` |
+| ciclo `SEMESTRAL` | `SEMIANNUAL` |
+| ciclo `ANUAL` | `ANNUAL` |
+
+(`module`, `plan_id`, `combo_group_id`, `seller_id` já em inglês.)
+
+## `payment_attempts`
+
+| PT | EN |
+|---|---|
+| `tipo` | `type` |
+| `tentativa_numero` | `attempt_number` |
+| `data_tentativa` | `attempted_at` |
+| `resultado` | `result` |
+| `motivo_recusa` | `decline_reason` |
+| tipo `PRIMEIRA_COBRANCA` | `INITIAL_CHARGE` |
+| tipo `RENOVACAO` | `RENEWAL` |
+| resultado `APROVADO` | `APPROVED` |
+| resultado `RECUSADO` | `DECLINED` |
+| resultado `PENDENTE` | `PENDING` |
+
+(`subscription_id`, `gateway_transaction_id` já em inglês.)
+
+## `refunds`
+
+| PT | EN |
+|---|---|
+| `valor_brl` | `amount_brl` |
+| `solicitado_em` | `requested_at` |
+| `processado_em` | `processed_at` |
+| tipo `ARREPENDIMENTO_TOTAL` | `FULL_WITHDRAWAL` |
+| tipo `ARREPENDIMENTO_COMBO_PARCIAL` | `PARTIAL_COMBO_WITHDRAWAL` |
+
+("Arrependimento" aqui é o direito de arrependimento do art. 49 do CDC —
+"withdrawal", não "regret"; `subscription_id`, `gateway_transaction_id`
+já em inglês.)
+
+## `trial_contestations`
+
+| PT | EN |
+|---|---|
+| `justificativa` | `justification` |
+| `analisado_por` | `reviewed_by` |
+| `analisado_em` | `reviewed_at` |
+| status `PENDENTE` | `PENDING` |
+| status `APROVADA` | `APPROVED` |
+| status `NEGADA` | `DENIED` |
+
+(`subscription_id`, `status` já em inglês.)
+
+## `risk_signals`
+
+| PT | EN |
+|---|---|
+| `tipo_sinal` | `signal_type` |
+| `detalhe` | `detail` |
+| `detectado_em` | `detected_at` |
+| sinal `EMAIL_REPETIDO` | `DUPLICATE_EMAIL` |
+| sinal `CELULAR_REPETIDO` | `DUPLICATE_PHONE` |
+| sinal `IP_REDE` | `IP_NETWORK` |
+| sinal `LIMITE_DISPOSITIVO` | `DEVICE_LIMIT` |
+
+(`subscription_id`, sinal `DEVICE_FINGERPRINT` já em inglês.)
+
+## `token_usage`
+
+| PT | EN |
+|---|---|
+| `origem` | `source` |
+| `tokens_entrada` | `input_tokens` |
+| `tokens_saida` | `output_tokens` |
+| `tokens_total` | `total_tokens` |
+| `custo_brl_snapshot` | `cost_brl_snapshot` |
+| `ciclo_referencia` | `reference_cycle` |
+| origem `PLANO_PAGO` | `PAID_PLAN` |
+
+(`analysis_run_id`, `subscription_id`, `store_id`, `api_pricing_id`,
+`exchange_rate_id`, origem `TRIAL` já em inglês.)
+
+## `token_package_plans`
+
+| PT | EN |
+|---|---|
+| `tamanho` | `size` |
+| `preco_brl` | `price_brl` |
+| tamanho `P` | `S` |
+| tamanho `M` | `M` (já em inglês) |
+| tamanho `G` | `L` |
+
+(`tokens` já em inglês.)
+
+## `token_packages`
+
+| PT | EN |
+|---|---|
+| `tokens_comprados` | `tokens_purchased` |
+| `preco_pago_brl` | `price_paid_brl` |
+| `ciclo_referencia` | `reference_cycle` |
+| `expira_em` | `expires_at` |
+
+(`subscription_id`, `package_plan_id` já em inglês.)
 
 ## `refresh_tokens` / `email_confirmation_tokens` / `password_reset_tokens`
 
@@ -174,3 +346,18 @@ só as colunas e valores de enum abaixo mudam.
 | Movimentação de estoque | `StockMovement` |
 | Execução do Ads Analyzer | `AnalysisRun` |
 | Reconciliação | `Reconciliation` |
+| Assinatura | `Subscription` |
+| Plano | `Plan` |
+| Módulo (enum fixo, não tabela — `software-engineering.md` §4.6) | `Module` |
+| Direitos de uso / entitlement | `Entitlement`/`EntitlementService` (já em inglês nos docs) |
+| Máquina de estados da assinatura | `SubscriptionStateMachine` |
+| Status da assinatura (enum) | `SubscriptionStatus` |
+| Tentativa de pagamento | `PaymentAttempt` |
+| Reembolso | `Refund` |
+| Contestação de trial | `TrialContestation` |
+| Sinal de risco | `RiskSignal` |
+| Uso de tokens | `TokenUsage` |
+| Pacote de tokens (catálogo) | `TokenPackagePlan` |
+| Pacote de tokens (compra) | `TokenPackage` |
+| Histórico de preço da API | `ApiPricingHistory` |
+| Snapshot de câmbio | `ExchangeRateSnapshot` |
