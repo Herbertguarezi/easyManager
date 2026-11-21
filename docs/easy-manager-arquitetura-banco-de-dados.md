@@ -1,9 +1,13 @@
 # Easy Manager — Arquitetura de Banco de Dados
 
-**Versão:** 2.0 (redesenha `plans`, remove `plan_modules` e
+**Versão:** 2.2 (10º status de assinatura, `CORTESIA`: `subscriptions.data_fim_cortesia`,
+`token_usage.origem` ganha `CORTESIA`, ações novas em `admin_audit_log`)
+**Versão anterior (2.1):** painel administrativo, Fase 1.6: `admin_audit_log`
+redesenhada em §10 e nova tabela `subscription_status_history` em §3
+**Versão anterior (2.0):** redesenha `plans`, remove `plan_modules` e
 `sellers.plan_id` — sincronização com o modelo comercial de módulos,
 planos por Stores, combo e tokens; ver `easy-manager-plano-execucao.md`
-Etapa C)
+Etapa C
 **Banco:** MariaDB 11
 **Migração:** Flyway (substitui `ddl-auto=update`)
 
@@ -168,7 +172,7 @@ seller×módulo (antes do primeiro trial/assinatura).
 | `seller_id` | `CHAR(36)` | `NOT NULL`, FK → `sellers.id`, `ON DELETE RESTRICT` |
 | `module` | `VARCHAR(30)` | `NOT NULL`, `CHECK (module IN ('PRODUCTS','ADS_ANALYZER'))` |
 | `plan_id` | `CHAR(36)` | nullable, FK → `plans.id`, `ON DELETE RESTRICT` — `NULL` enquanto em qualquer estado de trial |
-| `status` | `VARCHAR(30)` | `NOT NULL`, `CHECK (status IN ('TRIAL_ATIVO','TRIAL_RESTRITO','TRIAL_ESGOTADO','ATIVO','INADIMPLENTE','CANCELAMENTO_SOLICITADO','RETENCAO','EXCLUIDO','ARREPENDIDO'))` — 9º valor (`ARREPENDIDO`) entra na `V11` (Fase 1.5, Block B), depois da `V6` original |
+| `status` | `VARCHAR(30)` | `NOT NULL`, `CHECK (status IN ('TRIAL_ATIVO','TRIAL_RESTRITO','TRIAL_ESGOTADO','ATIVO','INADIMPLENTE','CANCELAMENTO_SOLICITADO','RETENCAO','EXCLUIDO','ARREPENDIDO','CORTESIA'))` — 9º valor (`ARREPENDIDO`) entra na `V11` (Fase 1.5, Block B), depois da `V6` original |
 | `ciclo` | `VARCHAR(20)` | nullable, `CHECK (ciclo IN ('MENSAL','TRIMESTRAL','SEMESTRAL','ANUAL'))` — `NULL` enquanto em trial |
 | `data_aniversario` | `DATE` | nullable — dia-base do ciclo (RN-SUB-002) |
 | `data_inicio_ciclo_atual` | `DATE` | nullable |
@@ -180,6 +184,7 @@ seller×módulo (antes do primeiro trial/assinatura).
 | `data_bloqueio` | `DATETIME` | nullable — marcado ao entrar em `RETENCAO` vindo de `INADIMPLENTE` (dia 6, RN-INAD-002/003) |
 | `data_exclusao_prevista` | `DATE` | nullable — calculada ao entrar em `RETENCAO` (por qualquer caminho): `data_bloqueio` ou `data_fim_ciclo_atual` + 7 ou 30 dias conforme o módulo (RN-RET-001) |
 | `data_expiracao_trial` | `DATE` | nullable — novo, Etapa C8. Só ADS_ANALYZER: 30 dias após entrar em trial (RN-TRIAL-006). `NULL` em PRODUCTS (trial sem prazo, RN-PROD-002) e `NULL` fora de estados de trial |
+| `data_fim_cortesia` | `DATE` | nullable — **último dia de acesso** da cortesia (RN-ADMIN-012); `CHECK (status <> 'CORTESIA' OR data_fim_cortesia IS NOT NULL)`. Fora de `CORTESIA` não é lido; pode manter o último valor, como registro |
 | `criado_em` | `DATETIME` | `NOT NULL` |
 | `atualizado_em` | `DATETIME` | `NOT NULL` |
 
@@ -202,6 +207,15 @@ Fase 1.5 — ver `PROGRESS.md`). `ARREPENDIDO` entra pelo mesmo motivo
 de `TRIAL_*`: `ATIVO → ARREPENDIDO` (arrependimento, RN-PAY-002/004)
 zera o plano — achado na revisão do Block B, junto da criação do
 estado em si (`regras-negocio.md` §13.4, gap 4).
+
+**`CORTESIA` (10º status, v2.2):** **não** entra na lista de exceção da
+constraint acima — uma cortesia sempre tem `plan_id` (o plano concedido,
+RN-ADMIN-011). `ciclo` e `data_aniversario` ficam nulos (não há cobrança). Em
+ADS_ANALYZER usa os mesmos campos `data_inicio_periodo_tokens_atual`/
+`data_fim_periodo_tokens_atual` do `ATIVO`. Ao vencer ou ser revogada vai para
+`RETENCAO` com `data_exclusao_prevista` calculada por RN-RET-001 e
+`data_bloqueio` **nulo** — é assim que a aplicação distingue essa retenção da
+que veio de inadimplência (reativação só por checkout do zero).
 
 **Invariante de aplicação (não expressável só em constraint de banco):**
 `plans.module` referenciado por `plan_id` deve ser igual a
@@ -327,6 +341,43 @@ registrado no plano de execução, C8b).
 `subscription_id`, checado no momento da criação do trial — não um
 número calculado e guardado à parte, que poderia dessincronizar se um
 sinal for adicionado depois.
+
+### `subscription_status_history` (novo — Fase 1.6, RN-ADMIN-007)
+
+1 linha por chamada bem-sucedida ao `SubscriptionStateMachine`, **inclusive
+auto-transições** (renovação, upgrade/downgrade, reset do período de
+tokens — `status_anterior = status_novo`). Existe porque `subscriptions`
+guarda só o estado **atual**: sem este histórico, conversão de trial e
+churn por período não são calculáveis (RN-ADMIN-009) e o painel não
+consegue mostrar a trajetória de uma assinatura.
+
+| Coluna | Tipo | Constraint |
+|---|---|---|
+| `id` | `CHAR(36)` | PK |
+| `subscription_id` | `CHAR(36)` | `NOT NULL`, FK → `subscriptions.id`, `ON DELETE RESTRICT` |
+| `status_anterior` | `VARCHAR(30)` | nullable — `NULL` na criação da linha de `subscriptions`; `CHECK (status_anterior IS NULL OR status_anterior IN ('TRIAL_ATIVO','TRIAL_RESTRITO','TRIAL_ESGOTADO','ATIVO','INADIMPLENTE','CANCELAMENTO_SOLICITADO','RETENCAO','EXCLUIDO','ARREPENDIDO','CORTESIA'))` |
+| `status_novo` | `VARCHAR(30)` | `NOT NULL`, `CHECK (status_novo IN ('TRIAL_ATIVO','TRIAL_RESTRITO','TRIAL_ESGOTADO','ATIVO','INADIMPLENTE','CANCELAMENTO_SOLICITADO','RETENCAO','EXCLUIDO','ARREPENDIDO','CORTESIA'))` |
+| `gatilho` | `VARCHAR(50)` | `NOT NULL` — identificador do evento da §13.3 de `easy-manager-regras-negocio.md` (nome do evento na máquina de estados); `BACKFILL` nas linhas criadas pela migration |
+| `ator_tipo` | `VARCHAR(10)` | `NOT NULL`, `CHECK (ator_tipo IN ('SISTEMA','SELLER','ADMIN'))` |
+| `ator_id` | `CHAR(36)` | nullable, FK → `sellers.id`, `ON DELETE RESTRICT`; `CHECK ((ator_tipo = 'SISTEMA' AND ator_id IS NULL) OR (ator_tipo <> 'SISTEMA' AND ator_id IS NOT NULL))` |
+| `criado_em` | `DATETIME` | `NOT NULL` |
+
+Índices: `INDEX(subscription_id, criado_em)` (trajetória de uma
+assinatura), `INDEX(status_novo, criado_em)` (entradas/saídas por estado
+em um período — conversão e churn).
+
+**Só-append** (nunca `UPDATE`/`DELETE`), mesmo padrão de `token_usage` e
+`stock_movements`. É gravada **na mesma transação** da mudança de
+`subscriptions.status` — se uma falha, a outra também é desfeita.
+Transição rejeitada pela máquina de estados não grava nada.
+
+**Backfill na própria migration:** para cada linha já existente em
+`subscriptions`, insere 1 linha com `status_anterior = NULL`,
+`status_novo` = status atual, `gatilho = 'BACKFILL'`, `ator_tipo =
+'SISTEMA'`, `criado_em` = momento da migration. As métricas
+(RN-ADMIN-009) excluem o gatilho `BACKFILL` das contagens de
+entrada/transição, porque ele não representa o momento real em que o
+estado foi atingido.
 
 ---
 
@@ -593,7 +644,7 @@ linha aqui).
 | `analysis_run_id` | `CHAR(36)` | `NOT NULL`, `UNIQUE`, FK → `analysis_runs.id`, `ON DELETE RESTRICT` |
 | `subscription_id` | `CHAR(36)` | `NOT NULL`, FK → `subscriptions.id`, `ON DELETE RESTRICT` |
 | `store_id` | `CHAR(36)` | `NOT NULL`, FK → `stores.id`, `ON DELETE RESTRICT` |
-| `origem` | `VARCHAR(20)` | `NOT NULL`, `CHECK (origem IN ('TRIAL','PLANO_PAGO'))` — snapshot do estado da assinatura no momento da execução, não recalculado depois |
+| `origem` | `VARCHAR(20)` | `NOT NULL`, `CHECK (origem IN ('TRIAL','PLANO_PAGO','CORTESIA'))` — snapshot do estado da assinatura no momento da execução, não recalculado depois (`CORTESIA` desde a v2.2, para o custo da cortesia ficar à parte, RN-ADMIN-013) |
 | `tokens_entrada` | `INT` | `NOT NULL` |
 | `tokens_saida` | `INT` | `NOT NULL` |
 | `tokens_total` | `INT` | `GENERATED ALWAYS AS (tokens_entrada + tokens_saida) STORED` |
@@ -673,22 +724,40 @@ e evita ter que decidir qual pacote "gastar primeiro".
 
 ## 10. Auditoria administrativa
 
-### `admin_audit_log`
+### `admin_audit_log` (redesenhada — Fase 1.6, RN-ADMIN-003)
+
+Versões anteriores tinham só `admin_id`/`seller_id`/`acao`/`ip`/`resultado`.
+Faltavam o **alvo** da ação (contestação, preço da API — nem toda ação
+tem um seller) e o **motivo**, e `seller_id` era obrigatório. Como a tabela
+ainda não foi criada em nenhuma migration, a versão abaixo entra direto
+como definitiva.
+
 | Coluna | Tipo | Constraint |
 |---|---|---|
 | `id` | `CHAR(36)` | PK |
-| `admin_id` | `CHAR(36)` | `NOT NULL`, FK → `sellers.id` |
-| `seller_id` | `CHAR(36)` | `NOT NULL`, FK → `sellers.id` |
-| `acao` | `VARCHAR(50)` | `NOT NULL` (ex: `ATIVAR_SELLER`, `DESATIVAR_SELLER`) |
+| `admin_id` | `CHAR(36)` | `NOT NULL`, FK → `sellers.id` (`role='ADMIN'`), `ON DELETE RESTRICT` |
+| `seller_id` | `CHAR(36)` | nullable, FK → `sellers.id`, `ON DELETE RESTRICT` — seller afetado; `NULL` em ação global (ex.: preço da API) |
+| `acao` | `VARCHAR(40)` | `NOT NULL`, `CHECK (acao IN ('CONSULTAR_SELLER','APROVAR_CONTESTACAO','NEGAR_CONTESTACAO','REGISTRAR_PRECO_API','CONCEDER_CORTESIA','ESTENDER_CORTESIA','REVOGAR_CORTESIA'))` |
+| `alvo_tipo` | `VARCHAR(30)` | `NOT NULL`, `CHECK (alvo_tipo IN ('SELLER','TRIAL_CONTESTATION','API_PRICING','SUBSCRIPTION'))` |
+| `alvo_id` | `CHAR(36)` | `NOT NULL` — id da linha-alvo; **sem FK** (polimórfico, depende de `alvo_tipo`) |
+| `motivo` | `VARCHAR(500)` | nullable — obrigatório na aplicação em toda escrita; `NULL` só em `CONSULTAR_SELLER` |
 | `ip` | `VARCHAR(45)` | `NOT NULL` |
-| `resultado` | `VARCHAR(20)` | `NOT NULL` |
+| `resultado` | `VARCHAR(20)` | `NOT NULL`, `CHECK (resultado IN ('SUCESSO','REJEITADO'))` — `REJEITADO` = recusada por regra de negócio, gravada em transação própria |
 | `criado_em` | `DATETIME` | `NOT NULL` |
+
+Índices: `INDEX(admin_id, criado_em)`, `INDEX(seller_id, criado_em)`,
+`INDEX(acao)`.
+
+**Só-append** (nunca `UPDATE`/`DELETE`). Ação nova de ADMIN exige
+migration que amplie o `CHECK` de `acao` — não existe "ação livre".
+**Nunca** guardar senha, token, chave de MFA ou dado de cartão em
+`motivo`.
 
 ---
 
 ## 11. Ordem de migração Flyway
 
-> **Nota de sincronização (pós-Fase 1):** os números `V2`–`V19` abaixo
+> **Nota de sincronização (pós-Fase 1):** os números `V2`–`V21` abaixo
 > indicam a **ordem relativa** das migrations, não números fixos. Na
 > implementação, `V2` cobriu só as 4 tabelas de Auth (+ `cnpj`/
 > `cnpj_verificado_em`, que aqui aparecem em `V16`), `V3` adicionou
@@ -709,7 +778,7 @@ e evita ter que decidir qual pacote "gastar primeiro".
 | `V6` | Estoque: `stock_movements`, constraints `CHECK` em `product_variations.amount`/`estoque_minimo` |
 | `V7` | Webhooks: `webhook_events`, `reconciliation_alerts` |
 | `V8` | Ads: `ad_snapshots`, `sku_metrics`, `ad_reports`, `analysis_runs` |
-| `V9` | Auditoria: `admin_audit_log` |
+| `V9` | Auditoria: `admin_audit_log` (design completo da §10 — Fase 1.6) |
 | `V10` | Assinaturas & Billing: `subscriptions` (Etapa C3) |
 | `V11` | Sellers & Stores: `store_module_activation` (Etapa C4) |
 | `V12` | Ads Analyzer: `token_usage` (Etapa C5) |
@@ -720,6 +789,8 @@ e evita ter que decidir qual pacote "gastar primeiro".
 | `V17` | Assinaturas & Billing: alter `subscriptions` adiciona `data_expiracao_trial` (Etapa C8) |
 | `V18` | Assinaturas & Billing: `refunds` (achado no C11) |
 | `V19` | Assinaturas & Billing: alter `subscriptions` adiciona `data_inicio_periodo_tokens_atual`, `data_fim_periodo_tokens_atual` (correção do C11 — separa período mensal de tokens do ciclo de cobrança) |
+| `V20` | Assinaturas & Billing: `subscription_status_history` + backfill (Fase 1.6, RN-ADMIN-007) |
+| `V21` | Assinaturas & Billing: estende o CHECK de `subscriptions.status` (+`CORTESIA`), adiciona `data_fim_cortesia` e seu CHECK, estende `token_usage.origem` (+`CORTESIA`) (Fase 1.6, Bloco B — RN-ADMIN-011 a 013) |
 
 Cada migration é aditiva e reversível apenas para frente (sem `down` — Flyway padrão); qualquer correção de schema depois de aplicado entra como nova versão (`V10`, `V11`...), nunca editando uma migration já rodada em produção.
 

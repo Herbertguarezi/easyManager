@@ -14,6 +14,7 @@ Nomes de tabela já em inglês nos documentos (`sellers`, `stores`,
 `email_confirmation_tokens`, `password_reset_tokens`,
 `admin_audit_log`, `product_variations`, `product_marketplace_links`,
 `store_credentials`, `reconciliation_alerts`, `plans`, `subscriptions`,
+`subscription_status_history`,
 `payment_attempts`, `refunds`, `trial_contestations`, `risk_signals`,
 `token_usage`, `token_package_plans`, `token_packages`,
 `api_pricing_history`, `exchange_rate_snapshots`) permanecem como
@@ -103,6 +104,8 @@ histórico.)
 | status `RETENCAO` | `RETENTION` |
 | status `EXCLUIDO` | `DELETED` |
 | status `ARREPENDIDO` (9º estado — achado na revisão do Block B; ver PROGRESS.md) | `WITHDRAWN` |
+| status `CORTESIA` (10º estado — Fase 1.6, RN-ADMIN-011) | `COMPLIMENTARY` |
+| `data_fim_cortesia` | `complimentary_end_date` |
 | ciclo `MENSAL` | `MONTHLY` |
 | ciclo `TRIMESTRAL` | `QUARTERLY` |
 | ciclo `SEMESTRAL` | `SEMIANNUAL` |
@@ -179,6 +182,7 @@ já em inglês.)
 | `custo_brl_snapshot` | `cost_brl_snapshot` |
 | `ciclo_referencia` | `reference_cycle` |
 | origem `PLANO_PAGO` | `PAID_PLAN` |
+| origem `CORTESIA` | `COMPLIMENTARY` |
 
 (`analysis_run_id`, `subscription_id`, `store_id`, `api_pricing_id`,
 `exchange_rate_id`, origem `TRIAL` já em inglês.)
@@ -361,3 +365,50 @@ já em inglês.)
 | Pacote de tokens (compra) | `TokenPackage` |
 | Histórico de preço da API | `ApiPricingHistory` |
 | Snapshot de câmbio | `ExchangeRateSnapshot` |
+
+## `admin_audit_log` (Fase 1.6)
+
+| PT | EN |
+|---|---|
+| `acao` | `action` |
+| `alvo_tipo` | `target_type` |
+| `alvo_id` | `target_id` |
+| `motivo` | `reason` |
+| `resultado` | `result` |
+| ação `CONSULTAR_SELLER` | `VIEW_SELLER` |
+| ação `APROVAR_CONTESTACAO` | `APPROVE_CONTESTATION` |
+| ação `NEGAR_CONTESTACAO` | `DENY_CONTESTATION` |
+| ação `REGISTRAR_PRECO_API` | `RECORD_API_PRICING` |
+| ação `CONCEDER_CORTESIA` | `GRANT_COMPLIMENTARY` |
+| ação `ESTENDER_CORTESIA` | `EXTEND_COMPLIMENTARY` |
+| ação `REVOGAR_CORTESIA` | `REVOKE_COMPLIMENTARY` |
+| resultado `SUCESSO` | `SUCCESS` |
+| resultado `REJEITADO` | `REJECTED` |
+
+(`admin_id`, `seller_id`, `ip`, alvo `SELLER`, `API_PRICING`, `SUBSCRIPTION` e
+`TRIAL_CONTESTATION` já em inglês.)
+
+## `subscription_status_history` (Fase 1.6)
+
+| PT | EN |
+|---|---|
+| `status_anterior` | `previous_status` |
+| `status_novo` | `new_status` |
+| `gatilho` | `trigger_event` |
+| `ator_tipo` | `actor_type` |
+| `ator_id` | `actor_id` |
+| ator `SISTEMA` | `SYSTEM` |
+| gatilho `BACKFILL` | `BACKFILL` (já em inglês) |
+
+(`subscription_id` já em inglês; `SELLER` e `ADMIN` como `actor_type` já em
+inglês. Valores de status seguem a tabela de `subscriptions`.)
+
+## Painel administrativo (conceitos)
+
+| PT | EN |
+|---|---|
+| painel administrativo | `admin` (pacote) |
+| contestação de trial | `trial contestation` (já usado em `trial_contestations`) |
+| MRR contratado | `contracted MRR` |
+| MRR em risco | `at-risk MRR` |
+| coorte de conversão | `conversion cohort` |

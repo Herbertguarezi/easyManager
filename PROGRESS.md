@@ -129,6 +129,93 @@ RN-RET, RN-ABUSE) e `arquitetura-banco-de-dados.md` §2–§3 (Etapa C1–C11).
 - [x] Job de retenção/exclusão (7 dias ADS_ANALYZER, 30 dias PRODUCTS) — nesta fase só a transição de estado + uma porta de purga (`DataPurgePort`) com implementação vazia; a exclusão real de dados entra junto das tabelas de cada módulo (Fases 3 e 7)
 - [x] Job de expiração de trial (30 dias, só ADS_ANALYZER) — purga dos snapshots pela mesma porta, implementada na Fase 7
 
+## ⚠️ Lacuna aberta — Gateway de pagamento (sem fase definida)
+
+**Achado na revisão do Block D.** Nenhuma fase do roadmap cobre a
+integração de pagamento de verdade: cobrar o cartão/pix do seller,
+confirmar via webhook do gateway, escrever em `payment_attempts`.
+Hoje essa tabela só existe no schema (Fase 1.5) e é **lida** pelo
+`DelinquencyJob` (Block D) — nada em nenhuma fase planejada **escreve**
+nela. `ATIVO → INADIMPLENTE` já funciona hoje só por data de vencimento
+(RN-INAD-001 não exige uma tentativa de cobrança pra detectar
+vencimento não pago), então a régua de 5 tentativas (RN-INAD-002) que
+o `DelinquencyJob` implementa **nunca vai disparar na prática** até
+que algo escreva em `payment_attempts` — o job está pronto, mas sem
+entrada de dados.
+
+Isso também quer dizer que não existe, em nenhum lugar do roadmap, a tela/
+fluxo de checkout (1ª cobrança, upgrade/downgrade de plano com cobrança
+proporcional se houver, inserção de cartão) nem a escolha de **qual**
+gateway (Stripe, Mercado Pago, Pagar.me, Asaas, outro). `arquitetura-
+banco-de-dados.md` já tem campos genéricos esperando isso
+(`gateway_transaction_id`, `motivo_recusa`) mas nenhuma decisão de
+vendor foi tomada em nenhum documento.
+
+**Decisão necessária, não técnica:** qual gateway, e em que fase esse
+trabalho entra (fase nova entre a 1.5 e a 2? depois da 8, antes de ir
+pra produção?). Sem isso, a Fase 1.5 está funcionalmente completa mas
+o sistema de cobrança como um todo não fecha o ciclo sozinho.
+
+**Atualização (20/11/2026) — decisão adiada; testes de implantação sem
+pagamentos.** Não há CNPJ no momento e os primeiros testes em ambiente real
+serão **sem cobrança**. Fica registrado:
+- **Gateway não escolhido.** O candidato avaliado foi o Asaas (assinaturas,
+  cartão tokenizado, Pix, nota fiscal; o Pix Automático dele exige CNPJ
+  ativo há pelo menos 6 meses). Nenhum código de gateway antes de existir
+  CNPJ e uma decisão formal.
+- **Arquitetura prevista, para quando entrar:** o gateway é só processador
+  (cartão tokenizado + cobranças avulsas). Ciclos, régua de 5 tentativas e
+  retenção continuam no `SubscriptionStateMachine` e nos jobs; cada
+  tentativa vira uma linha em `payment_attempts`.
+- **Fora do caminho crítico das Fases 1.6–7.** A fase de Pagamentos fica
+  para antes de abrir o produto a clientes reais.
+- **Sem cobrança, o seller usa trial ou cortesia.** Trial: RN-PROD-002/003,
+  RN-TRIAL-*. Cortesia (decidida em 20/11/2026): estado `CORTESIA`, acesso
+  completo sem cobrança, concedido **só por ADMIN**, com prazo obrigatório
+  (RN-ADMIN-011 a 013, Fase 1.6 Bloco B). MRR zerado no painel é o esperado
+  (RN-ADMIN-010).
+
+## Fase 1.6 — Painel Administrativo (API) (nova)
+**Status:** não iniciada — **só começa depois da revisão de fechamento da Fase 1.5**
+
+Referência: `regras-negocio.md` §14 (RN-ADMIN-001 a 013) e invariantes
+13–16; `arquitetura-banco-de-dados.md` §3 (`subscription_status_history`) e
+§10 (`admin_audit_log`); `software-engineering.md` §10.11 (RF-AD01–10).
+Só a **API** — a interface fica na Fase 8. Cada bloco vai com TDD e
+termina com testes verdes antes do próximo. Migrations: sempre o próximo
+número livre, nunca editar uma já aplicada.
+
+**Bloco A — Base** *(a tabela `subscription_status_history` já nasce com os 10 status no CHECK, incluindo `COMPLIMENTARY`; o enum e o CHECK de `subscriptions.status` ganham `COMPLIMENTARY` só no Bloco B)*
+- [ ] Migration `admin_audit_log` (design completo do §10: alvo, motivo, `seller_id` nullable, `CHECK`s)
+- [ ] Migration `subscription_status_history` + backfill (gatilho `BACKFILL`)
+- [ ] `SubscriptionStateMachine` grava o histórico em toda transição bem-sucedida, inclusive auto-transições, na mesma transação (RN-ADMIN-007, RF-AD04). Testes: cada linha da §13.3 gera exatamente 1 linha de histórico; transição rejeitada não gera nenhuma
+- [ ] `AdminAuditService`: grava na mesma transação; `REJEITADO` em transação própria; sem `UPDATE`/`DELETE` (RF-AD03)
+- [ ] Pacote `admin/` e `/admin/**` com `@RequiresRole(ADMIN)` + MFA; `401`/`403`/`200`; teste de varredura que falha se um handler `/admin` ficar sem a anotação (RF-AD01)
+- [ ] `GET /admin/sellers` (paginado, filtros) e `GET /admin/sellers/{id}` (auditado como `CONSULTAR_SELLER`), com DTOs próprios e teste de que o JSON não contém campo de negócio (RN-ADMIN-002, RF-AD02)
+- [ ] Comando de provisionamento de ADMIN, fora de banda; senha e chave de MFA nunca em log (RN-ADMIN-008, RF-AD07)
+
+**Bloco B — Cortesia** (RN-ADMIN-011 a 013, RF-AD08–10; estado `COMPLIMENTARY`, 10º da máquina)
+- [ ] Migration: estende o CHECK de `subscriptions.status` (+`COMPLIMENTARY`), adiciona `complimentary_end_date` + `CHECK (status <> 'COMPLIMENTARY' OR complimentary_end_date IS NOT NULL)`, estende `token_usage.source` (+`COMPLIMENTARY`). `chk_subscriptions_plan_required` **não** muda (cortesia sempre tem plano)
+- [ ] `SubscriptionStateMachine`: 7 transições novas da §13.3 (concessão a partir de sem-linha e dos 3 trials, extensão, reset mensal de tokens, vencimento → `RETENTION`, revogação → `RETENTION`, `COMPLIMENTARY → ACTIVE` por pagamento). Teste por linha da tabela, incluindo as proibidas (conceder a `ACTIVE`, `RETENTION`, `WITHDRAWN`, `DELETED` → rejeitado); cada transição grava histórico
+- [ ] `EntitlementService` conforme RN-ADMIN-013: `canUseModule`, `getStoreLimit`, `canCreateProduct`, `getTokenBalance`, `canBuyExtraPackage` (falso), `canExecuteAnalysis`; `token_usage.source = COMPLIMENTARY` na execução
+- [ ] Reset mensal do período de tokens inclui `COMPLIMENTARY` (descobrir onde isso é feito hoje); `DelinquencyJob` e `TrialExpirationJob` não tocam `COMPLIMENTARY` (testes)
+- [ ] `CourtesyExpirationJob` (diário, idempotente): `COMPLIMENTARY` com `complimentary_end_date` < hoje → `RETENTION`, `scheduled_deletion_date` por RN-RET-001, `blocked_at` nulo; o `RetentionJob` existente cuida do resto
+- [ ] Endpoints admin: conceder / estender / revogar / `GET /admin/courtesies?expiringInDays=`; `409` para estado inválido, `422` para prazo acima do máximo (`app.courtesy.max-days`, padrão 90) ou no passado; motivo obrigatório; auditoria `GRANT/EXTEND/REVOKE_COMPLIMENTARY` na mesma transação; seller `role != SELLER` ou não `ACTIVE` → rejeitado
+
+**Bloco C — Operar** (antes "Bloco B")
+- [ ] `GET /admin/trial-contestations` (fila por status)
+- [ ] Aprovar/negar contestação: só `PENDING`, motivo obrigatório, segunda decisão → `409`; aprovar executa `TRIAL_RESTRICTED → TRIAL_ACTIVE` via máquina de estados, na mesma transação; se a assinatura já saiu de `TRIAL_RESTRICTED` (inclusive por cortesia), `409` sem gravar a aprovação (RN-ADMIN-004/005)
+- [ ] `GET`/`POST /admin/api-pricing`: só-append, `updated_by` = admin, `effective_from` não retroativo, motivo obrigatório; **não** recalcula cota (RN-ADMIN-006)
+
+**Bloco D — Métricas** (somente leitura, RN-ADMIN-009/010/013; antes "Bloco C")
+- [ ] Assinaturas por módulo e status; entradas em trial; conversão de trial (coorte); cancelamentos e taxa; inadimplência e "MRR em risco"
+- [ ] MRR contratado por módulo (ciclo × combo), com `CANCELLATION_REQUESTED` em linha separada; **`COMPLIMENTARY` fora do MRR**; rótulo "contratado", nunca "recebido"
+- [ ] Cortesia: contagem, dias restantes, valor de tabela concedido, custo de tokens (`source = COMPLIMENTARY`), conversão de cortesia (→ `ACTIVE`) à parte da conversão de trial
+- [ ] Tokens (consumo e % da cota por plano; maiores consumidores) e margem por seller ADS_ANALYZER (com custo de trial e de cortesia à parte) — testados com dados inseridos direto, porque dados reais só existem na Fase 7
+- [ ] Abuso: sinais por tipo, fila pendente, taxa de aprovação, entradas diárias × conversão (RN-ABUSE-006)
+
+**Fora do escopo (decidido):** ativar/desativar seller; estender trial (a cortesia o substitui); reativar assinatura paga manualmente; re-conceder cortesia depois de `RETENTION`; reembolso manual (gateway); monitoramento de jobs; preços de pacotes avulsos.
+
 ## Fase 2 — Sellers/Stores
 **Status:** não iniciada
 
@@ -195,6 +282,12 @@ RN-RET, RN-ABUSE) e `arquitetura-banco-de-dados.md` §2–§3 (Etapa C1–C11).
 - [ ] FK `token_usage.analysis_run_id → analysis_runs` (migration própria; coluna e UNIQUE já existem desde a Fase 1.5)
 - [ ] `canExecuteAnalysis` passa a exigir também Store ativa no módulo (RN-ADS-002: 1 execução por Store por dia — confirmar que a checagem existe na aplicação, o índice de `analysis_runs` não é `UNIQUE`)
 - [ ] Retry (erros transitórios) e circuit breaker
+- [ ] Recalibração automática da proporção de tokens entrada/saída
+      após ~100 execuções reais (RN-TOKEN-006) — não implementada na
+      Fase 1.5 (Block D) porque não existia nenhuma execução real no
+      banco ainda; `TokenCostCalculator` usa a proporção fixa
+      12.500/6.000 até aqui. Revisitar assim que `token_usage` tiver
+      volume suficiente.
 
 ## Fase 8 — Frontend
 **Status:** não iniciada
@@ -202,6 +295,7 @@ RN-RET, RN-ABUSE) e `arquitetura-banco-de-dados.md` §2–§3 (Etapa C1–C11).
 - [ ] Login (com tratamento de sessão expirada)
 - [ ] Stores, Produtos, Vínculos, status de estoque
 - [ ] Ads Analyzer (seletor de Store)
+- [ ] Painel administrativo (interface sobre `/admin/**`, API da Fase 1.6): login com MFA para ADMIN, listagem de sellers, fila de contestações, preço da API, métricas
 - [ ] Ambiente de dev com HTTPS (proxy com TLS): os cookies `refresh_token`/`csrf_token` são `Secure` e não voltam em `http://localhost:5173` (achado da Fase 1)
 
 ---

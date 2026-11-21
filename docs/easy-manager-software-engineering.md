@@ -1,7 +1,11 @@
 # Easy Manager — Documento de Engenharia de Software
 
-**Versão:** 5.0 (Entitlements sincronizado com o modelo comercial de
-planos por módulo, combo, trial e cota de tokens)
+**Versão:** 5.2 (estado `CORTESIA` — máquina de 10 estados; §4.6, §10.11,
+§12.5 e §14 ajustados)
+**Versão anterior (5.1):** painel administrativo — Fase 1.6: §10.8/§10.9
+expandidos, §10.11 novo; §12.5, §14 e §15 ajustados
+**Versão anterior (5.0):** Entitlements sincronizado com o modelo comercial de
+planos por módulo, combo, trial e cota de tokens
 **Data:** Setembro/2026
 **Status:** Documento de arquitetura-alvo consolidado. Fase 0 do roadmap (§14) implementada — ver PROGRESS.md.
 
@@ -29,6 +33,7 @@ de terceiros.
 | **Vínculo Produto↔Marketplace** | Ligação entre `ProductVariation` e SKU externo, com ownership cruzado validado | Novo, não implementado |
 | **Ads Analyzer** | Coleta diária, análise via IA, relatório, execução como job assíncrono | Novo, não implementado |
 | **Webhooks** | Recepção de eventos, `webhook_events`, replay protection, processamento transacional | Novo, não implementado |
+| **Admin** | API do painel administrativo: leitura de conta/assinatura/cobrança/risco/consumo, decisão de contestações de trial, preço da API, métricas; auditoria | Fase 1.6 |
 
 ---
 
@@ -82,6 +87,7 @@ easymanager_api
 ├── stock
 ├── webhooks
 ├── ads
+├── admin
 └── shared
     ├── security
     ├── exceptions
@@ -283,7 +289,7 @@ de execução)
 **O que mudou desde a v4.5:** não existe mais um plano único "Full"
 liberando tudo. Um seller pode ter **0, 1 ou 2 assinaturas de módulo**
 independentes (`PRODUCTS` e/ou `ADS_ANALYZER`), cada uma com seu
-próprio plano, ciclo, estado (máquina de 9 estados,
+próprio plano, ciclo, estado (máquina de 10 estados,
 `easy-manager-regras-negocio.md` §13), Stores ativas e — no caso do
 ADS_ANALYZER — saldo de tokens. A checagem de entitlement deixa de ser
 um único booleano ("tem o módulo?") e passa a ser uma composição de
@@ -326,7 +332,7 @@ sellers (sem plan_id) ──< subscriptions >── plans (module × tier, 6 lin
 ```
 
 Cada linha de `subscriptions` é um par seller×módulo, com `status`
-sendo um dos 9 estados da máquina. Não existe mais "o plano do
+sendo um dos 10 estados da máquina. Não existe mais "o plano do
 seller" no singular — existe "a assinatura do seller nesse módulo".
 
 **`EntitlementService` — contrato (Etapa 4 do checklist geral):**
@@ -366,19 +372,19 @@ módulo/execução, não volume).
 
 | Método | Lógica (RN-XXX) |
 |---|---|
-| `canUseModule` | `subscriptions.status` para aquele seller×módulo está em `{TRIAL_ATIVO, ATIVO, INADIMPLENTE, CANCELAMENTO_SOLICITADO}`. `TRIAL_RESTRITO`, `TRIAL_ESGOTADO`, `RETENCAO`, `EXCLUIDO`, `ARREPENDIDO` (9º estado, Block B da Fase 1.5 — mesmo balaio de `RETENCAO`/`EXCLUIDO`) ou ausência de linha (`SEM_ASSINATURA`) → `false`. `INADIMPLENTE` ainda conta como uso liberado (RN-INAD-001); `CANCELAMENTO_SOLICITADO` idem, até o fim do ciclo (RN-SUB-007) |
-| `getStoreLimit` | `plans.stores_limit` do plano vigente da assinatura daquele módulo; se em trial de PRODUCTS, fixo em 1 (RN-PROD-002); se em trial de ADS_ANALYZER, fixo em 1 — mesmo teto do seu próprio Básico pago, não emprestado de PRODUCTS (RN-TRIAL-009) |
+| `canUseModule` | `subscriptions.status` para aquele seller×módulo está em `{TRIAL_ATIVO, ATIVO, INADIMPLENTE, CANCELAMENTO_SOLICITADO, CORTESIA}`. `TRIAL_RESTRITO`, `TRIAL_ESGOTADO`, `RETENCAO`, `EXCLUIDO`, `ARREPENDIDO` (9º estado, Block B da Fase 1.5 — mesmo balaio de `RETENCAO`/`EXCLUIDO`) ou ausência de linha (`SEM_ASSINATURA`) → `false`. `INADIMPLENTE` ainda conta como uso liberado (RN-INAD-001); `CANCELAMENTO_SOLICITADO` idem, até o fim do ciclo (RN-SUB-007) |
+| `getStoreLimit` | `plans.stores_limit` do plano vigente da assinatura daquele módulo (em `CORTESIA`, o do plano concedido); se em trial de PRODUCTS, fixo em 1 (RN-PROD-002); se em trial de ADS_ANALYZER, fixo em 1 — mesmo teto do seu próprio Básico pago, não emprestado de PRODUCTS (RN-TRIAL-009) |
 | `canCreateStore` | total de Stores cadastradas (não excluídas) `<` o **maior** `stores_limit` entre os módulos assinados (RN-STORE-001) |
 | `canActivateStore` | `COUNT(store_module_activation.ativo=true)` daquele módulo `<` `getStoreLimit` (RN-STORE-002) |
 | `getActiveStores` | `SELECT store_id FROM store_module_activation WHERE module=? AND ativo=true` |
-| `getTokenBalance` | `plans.cota_tokens_mes_atual` (ajustada por upgrade/downgrade, RN-TOKEN-004) `+ SUM(token_packages` do ciclo`) − SUM(token_usage.tokens_total` do ciclo`)` — trial usa o pool isolado de 60.000 (RN-TRIAL-004), nunca este cálculo |
+| `getTokenBalance` | `plans.cota_tokens_mes_atual` (ajustada por upgrade/downgrade, RN-TOKEN-004) `+ SUM(token_packages` do ciclo`) − SUM(token_usage.tokens_total` do ciclo`)` — trial usa o pool isolado de 60.000 (RN-TRIAL-004), nunca este cálculo; `CORTESIA` usa este mesmo cálculo, com a cota do plano concedido |
 | `canExecuteAnalysis` | `canUseModule(ADS_ANALYZER)` **e** Store ativa nesse módulo **e** saldo suficiente pra não ultrapassar a cota/pool do ciclo (RN-ADS-003, RN-TRIAL-005 — corta antes de rodar, não depois) |
-| `canBuyExtraPackage` | `status = 'ATIVO'` (não em trial, não bloqueado) — pacote avulso não existe fora de plano pago ativo |
+| `canBuyExtraPackage` | `status = 'ATIVO'` (não em trial, não bloqueado, **não em `CORTESIA`** — pacote avulso exige pagamento) — não existe fora de plano pago ativo |
 | `getSubscriptionStatus` | leitura direta de `subscriptions.status` |
 | `isInTrial` | `status IN ('TRIAL_ATIVO','TRIAL_RESTRITO','TRIAL_ESGOTADO')` |
 | `isPastDue` | `status = 'INADIMPLENTE'` |
 | `isInRetention` | `status = 'RETENCAO'` |
-| `canCreateProduct` | Se `isInTrial(PRODUCTS)`: `currentProductCount < 15` (RN-PROD-003, contagem passada pelo chamador — ver nota acima). Se plano pago: sempre `true` (sem teto de produtos) |
+| `canCreateProduct` | Se `isInTrial(PRODUCTS)`: `currentProductCount < 15` (RN-PROD-003, contagem passada pelo chamador — ver nota acima). Se plano pago ou `CORTESIA`: sempre `true` (sem teto de produtos) |
 
 **Mecanismo de checagem — anotação + interceptor, agora resolvendo
 contra o novo modelo:**
@@ -829,19 +835,66 @@ uma API já degradada.
 /stores/**            → SELLER (ownership)
 /marketplace-links/** → SELLER (ownership cruzado)
 /ads/**               → SELLER (ownership) + rate limit
-/admin/**             → ADMIN
+/admin/**             → ADMIN + MFA (RN-ADMIN-001), escrita auditada (RN-ADMIN-003)
 ```
 
 ### 10.9 Auditoria administrativa
 
-Ações sensíveis do ADMIN (ativar/desativar seller) registram
-`admin_id`, `seller_id`, ação, timestamp, IP e resultado.
+Toda ação de **escrita** do ADMIN, e a consulta de detalhe de um seller,
+registra em `admin_audit_log`: admin, seller afetado (quando houver),
+ação, alvo, motivo, IP, resultado e timestamp — na **mesma transação** da
+ação (RN-ADMIN-003). Detalhes e a lista de ações em §10.11 e em
+`easy-manager-arquitetura-banco-de-dados.md` §10. (A versão anterior citava
+"ativar/desativar seller"; nenhuma RN define o efeito dessa ação, então ela
+ficou fora da Fase 1.6.)
 
 ### 10.10 Documentação (OpenAPI/Swagger)
 
 Dado o tamanho crescente da API, documentar autenticação, roles, códigos
 HTTP (`401/403/404/409/422/429/500`), payloads, paginação, semântica de
 webhooks e idempotência.
+
+### 10.11 Painel administrativo — API (Fase 1.6, novo)
+
+Regras: `easy-manager-regras-negocio.md` §14 (RN-ADMIN-001 a 013). A
+interface React entra na Fase 8; nesta fase a API é exercitada por testes
+de integração.
+
+| Rota | Função | Auditoria |
+|---|---|---|
+| `GET /admin/sellers` | Lista paginada; filtros por status, módulo e busca por e-mail | — |
+| `GET /admin/sellers/{sellerId}` | Detalhe: conta, assinaturas (módulo, plano, ciclo, status), histórico de status, sinais de risco, contestações, consumo do período, resultado dos pagamentos | `CONSULTAR_SELLER` |
+| `GET /admin/trial-contestations?status=PENDING` | Fila de contestações | — |
+| `POST /admin/trial-contestations/{id}/approve` | Aprova (`reason` obrigatório) e executa `TRIAL_RESTRITO → TRIAL_ATIVO` | `APROVAR_CONTESTACAO` |
+| `POST /admin/trial-contestations/{id}/deny` | Nega (`reason` obrigatório); assinatura inalterada | `NEGAR_CONTESTACAO` |
+| `POST /admin/sellers/{sellerId}/subscriptions/{module}/courtesy` | Concede cortesia (`plan`, `endDate`, `reason`) — RN-ADMIN-011 | `CONCEDER_CORTESIA` |
+| `POST /admin/sellers/{sellerId}/subscriptions/{module}/courtesy/extend` | Estende o prazo (`endDate`, `reason`) — RN-ADMIN-012 | `ESTENDER_CORTESIA` |
+| `POST /admin/sellers/{sellerId}/subscriptions/{module}/courtesy/revoke` | Revoga (`reason`) → `RETENCAO` | `REVOGAR_CORTESIA` |
+| `GET /admin/courtesies?expiringInDays=` | Cortesias ativas, com dias restantes e filtro de vencimento próximo | — |
+| `GET /admin/api-pricing` | Histórico de preços da API | — |
+| `POST /admin/api-pricing` | Registra novo preço (só-append; `reason` obrigatório) | `REGISTRAR_PRECO_API` |
+| `GET /admin/metrics/overview`, `/subscriptions`, `/tokens`, `/abuse` | Métricas de RN-ADMIN-009 (`from`/`to` onde fizer sentido) | — |
+
+**Requisitos funcionais:**
+
+| ID | Requisito |
+|---|---|
+| RF-AD01 | Todo handler sob `/admin/**` leva `@RequiresRole(ADMIN)` e exige MFA; um teste varre os mapeamentos e **falha** se algum handler `/admin` não tiver a anotação |
+| RF-AD02 | `/admin/**` responde `401` sem token, `403` para SELLER e nunca devolve campo de negócio (produtos, estoque, relatórios, credenciais) — teste no JSON das respostas |
+| RF-AD03 | `AdminAuditService` grava `admin_audit_log` na mesma transação; falha na auditoria desfaz a ação; recusa por regra grava `REJEITADO` em transação própria (`REQUIRES_NEW`) |
+| RF-AD04 | `SubscriptionStateMachine` grava `subscription_status_history` em toda transição bem-sucedida, inclusive auto-transições, na mesma transação; rejeitada não grava |
+| RF-AD05 | Decisão de contestação é idempotente por estado: só `PENDENTE`; segunda decisão → `409` |
+| RF-AD06 | Endpoints de métricas são somente leitura (`readOnly = true`), paginados/agregados no banco, sem N+1 |
+| RF-AD07 | Não existe endpoint de criar, editar ou promover ADMIN; provisionamento é um comando único fora de banda (RN-ADMIN-008) |
+| RF-AD08 | Conceder/estender/revogar cortesia passa só pelo `SubscriptionStateMachine`, na mesma transação do `admin_audit_log` e do histórico; condições violadas → `409`; `endDate` acima do máximo ou no passado → `422` |
+| RF-AD09 | Job diário `CourtesyExpirationJob` move `CORTESIA` vencida para `RETENCAO` (RN-ADMIN-012); é idempotente; `DelinquencyJob` e `TrialExpirationJob` nunca tocam `CORTESIA` |
+| RF-AD10 | `EntitlementService` trata `CORTESIA` conforme RN-ADMIN-013 (limites do plano, sem pacote avulso, `token_usage.source = COMPLIMENTARY`) |
+
+**Fora do escopo da Fase 1.6** (registrado de propósito): ativar/desativar
+seller; estender trial (a cortesia o substitui); reativar assinatura paga
+manualmente; re-conceder cortesia depois de `RETENCAO`; reembolso manual
+(depende do gateway); monitoramento de execução dos jobs (exigiria uma
+tabela de execuções); preços dos pacotes avulsos.
 
 ---
 
@@ -888,6 +941,9 @@ identificado e ignorado.
 | Próprios relatórios | ✓ | — | ✗ |
 | Relatório de outro seller | ✗ | ✗ | ✗ |
 | Credenciais de Store | interno (nunca exposto) | ✗ | ✗ |
+| Assinatura, histórico de status, pagamentos (resultado) e consumo de tokens de um seller | ✓ (próprios) | ✗ | leitura via `/admin/**` (RN-ADMIN-002) |
+| Contestação de trial | ✓ (abre a própria) | ✗ | decide via `/admin/**`, auditado |
+| Cortesia (acesso gratuito) | ✗ | ✗ | concede, estende e revoga via `/admin/**`, auditado |
 
 ---
 
@@ -933,10 +989,20 @@ seller nasce sem assinatura (RF-AU19).
 **Fase 1.5 — Assinaturas, Planos & Entitlements**
 `plans`/`subscriptions`/`store_module_activation`/`token_usage`/pacotes
 avulsos/`payment_attempts`/`refunds`/anti-abuso (§4.6, migrations
-`V10`–`V19`); `SubscriptionStateMachine` (máquina de 9 estados,
+`V10`–`V19`); `SubscriptionStateMachine` (máquina de 9 estados — 10 com `CORTESIA`, Fase 1.6,
 `docs/regras-negocio.md` §13); `EntitlementService` (13 métodos);
 jobs de câmbio, cobrança, retenção e expiração de trial. Pré-requisito
 de tudo a partir daqui — Fases 2–7 checam entitlement em algum ponto.
+
+**Fase 1.6 — Painel administrativo (API)**
+`admin_audit_log` e `subscription_status_history`
+(`SubscriptionStateMachine` passa a gravar o histórico); `/admin/**` com
+`ADMIN` + MFA; consulta de sellers; fila e decisão de contestações de
+trial; registro do preço da API; métricas (MRR contratado, conversão de
+trial, churn, inadimplência, consumo de tokens, margem por seller, abuso);
+concessão, extensão e revogação de **cortesia** (estado `CORTESIA`, acesso
+gratuito com prazo, concedido só por ADMIN); provisionamento de ADMIN por
+comando. RN-ADMIN-001 a 013. Interface na Fase 8.
 
 **Fase 2 — Sellers/Stores**
 Seller; Store; OAuth Shopee; criptografia dos tokens; renovação de
@@ -965,7 +1031,7 @@ limit/custo de execução manual; retry; circuit breaker; notificações.
 
 **Fase 8 — Frontend**
 Login (com tratamento de sessão expirada); Stores; Produtos; Vínculos;
-status de estoque; Ads Analyzer.
+status de estoque; Ads Analyzer; painel administrativo (interface sobre `/admin/**`).
 
 ---
 
@@ -975,8 +1041,9 @@ status de estoque; Ads Analyzer.
 [ ] Isolamento completo entre sellers
 [ ] Ownership em todos os endpoints, incluindo os de leitura/exportação
 [ ] Isolamento multi-tenant reforçado no ORM (filtro Hibernate), não só por convenção de código
-[ ] ADMIN não acessa dados de negócio
+[ ] ADMIN não acessa dados de negócio (produtos, estoque, relatórios, credenciais) — só conta, assinatura, cobrança, risco e consumo (RN-ADMIN-002)
 [ ] ADMIN exige MFA
+[ ] Toda ação de escrita de ADMIN grava `admin_audit_log` na mesma transação (RN-ADMIN-003)
 [ ] JWT curto
 [ ] JWT com algoritmo fixo no verificador (nunca confia no `alg` do token)
 [ ] Refresh token com rotation

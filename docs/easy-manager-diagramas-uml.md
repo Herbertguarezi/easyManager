@@ -322,7 +322,7 @@ sequenceDiagram
 ### 4.1 Assinatura (já formalizado em `regras-negocio.md` §13 — reproduzido aqui por completude)
 
 Ver `easy-manager-regras-negocio.md` §13.2 para o diagrama completo
-(9 estados, todas as transições com RN-XXX — inclui `ARREPENDIDO`,
+(10 estados, todas as transições com RN-XXX — inclui `ARREPENDIDO` e `CORTESIA`,
 achado depois deste diagrama ter sido publicado; ver `regras-negocio.md`
 §13.4). Não duplicado aqui pra
 evitar as duas versões divergirem — **a fonte de verdade é §13 do

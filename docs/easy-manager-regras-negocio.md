@@ -1,9 +1,14 @@
 # Easy Manager — Regras de Negócio (RN-XXX)
 
-**Versão:** 1.2 (9º estado da assinatura, `ARREPENDIDO`, adicionado —
+**Versão:** 1.4 (10º estado da assinatura, `CORTESIA` — acesso completo sem
+cobrança, concedido só por ADMIN e sempre com prazo; RN-ADMIN-011 a
+RN-ADMIN-013; RN-ADMIN-004 reescrita; invariante 16)
+**Versão anterior (1.3):** domínio `ADMIN` — RN-ADMIN-001 a RN-ADMIN-010 — e
+invariantes 13–15, para o painel administrativo da Fase 1.6
+**Versão anterior (1.2):** 9º estado da assinatura, `ARREPENDIDO`, adicionado —
 `SEM_ASSINATURA` não é destino armazenável depois que a linha existe;
 achado na implementação do Block B da Fase 1.5, junto da confirmação
-de que `EXCLUIDO` é terminal sem exceção)
+de que `EXCLUIDO` é terminal sem exceção
 **Versão anterior (1.1):** RN-PAY-004, RN-SUB-009/010, RN-TOKEN-006–010
 adicionadas; máquina de estados §13 formalizada e revisada; RN-SUB-004
 vs RN-SUB-005/006 — contradição encontrada e resolvida; terminologia
@@ -26,7 +31,7 @@ uma validação de entitlement, ou uma constraint de banco.
 Nomenclatura de domínio: `PLAN`, `SUB` (Subscription), `STORE`,
 `PROD` (módulo PRODUCTS), `ADS` (módulo ADS_ANALYZER), `TRIAL`,
 `TOKEN`, `COMBO`, `PAY` (Pagamentos), `INAD` (Inadimplência), `RET`
-(Retenção), `ABUSE` (Anti-abuso).
+(Retenção), `ABUSE` (Anti-abuso), `ADMIN` (Painel administrativo).
 
 ---
 
@@ -387,6 +392,19 @@ edge case ou ordem de operações:
 12. **Nunca** excluir snapshots de Store desvinculada por downgrade —
     só Stores excluídas manualmente pelo seller têm exclusão
     definitiva de dados (RN-RET-004 vs. RN-RET-005).
+13. **Nunca** permitir que uma ação de ADMIN altere `subscriptions.status`
+    por fora do `SubscriptionStateMachine`, nem provoque uma transição que
+    não exista em §13.3 (RN-ADMIN-004).
+14. **Nunca** concluir uma ação administrativa de escrita sem a linha
+    correspondente em `admin_audit_log`, gravada na mesma transação
+    (RN-ADMIN-003).
+15. **Nunca** expor a ADMIN dados de negócio do seller (produtos,
+    estoque, relatórios, snapshots de anúncios, credenciais de Store) —
+    só dados de conta, assinatura, cobrança, risco e consumo
+    (RN-ADMIN-002).
+16. **Nunca** existir assinatura em `CORTESIA` sem plano e sem
+    `data_fim_cortesia`, nem conceder, estender ou revogar cortesia sem
+    motivo registrado em `admin_audit_log` (RN-ADMIN-011/012).
 
 ---
 
@@ -408,6 +426,7 @@ roda separadamente por módulo dentro do combo.
 | `ATIVO` | Assinatura paga, em dia |
 | `INADIMPLENTE` | Vencimento não pago, dentro da régua de 5 tentativas (RN-INAD-001) |
 | `RETENCAO` | Acesso bloqueado, contando o prazo de retenção (7 ou 30 dias) — chegada por inadimplência (dia 6) ou por fim de ciclo após cancelamento voluntário |
+| `CORTESIA` | Acesso completo ao plano concedido, **sem cobrança**, dado por ADMIN com prazo final obrigatório (`data_fim_cortesia`) — RN-ADMIN-011/012. Não é trial e não é pago |
 | `EXCLUIDO` | Dados apagados definitivamente (terminal, sem exceção — confirmado na Fase 1.5, Block B) |
 | `ARREPENDIDO` | Direito de arrependimento exercido (7 dias, reembolso integral); linha mantida (nunca é hard-delete), mas sem plano — precisa assinar de novo pra voltar |
 
@@ -432,6 +451,14 @@ stateDiagram-v2
 
     ATIVO --> ATIVO: upgrade / downgrade /\nrenovação de cobrança
     ATIVO --> ATIVO: reset mensal de tokens\n(ADS_ANALYZER, independente\nda renovação de cobrança)
+    SEM_ASSINATURA --> CORTESIA: ADMIN concede\n(plano + prazo + motivo)
+    TRIAL_ATIVO --> CORTESIA: ADMIN concede
+    TRIAL_RESTRITO --> CORTESIA: ADMIN concede
+    TRIAL_ESGOTADO --> CORTESIA: ADMIN concede
+    CORTESIA --> CORTESIA: ADMIN estende o prazo /\nreset mensal de tokens (ADS_ANALYZER)
+    CORTESIA --> ATIVO: assina plano pago\n(pagamento aprovado)
+    CORTESIA --> RETENCAO: prazo final vencido\nou ADMIN revoga
+
     ATIVO --> ARREPENDIDO: arrependimento (7 dias)\nreembolso integral\nacesso cortado na hora
     ARREPENDIDO --> ATIVO: assina de novo\n(1ª cobrança aprovada,\nsem restrição adicional)
     ATIVO --> CANCELAMENTO_SOLICITADO: cancelamento voluntário\n(irreversível, sem desistência)
@@ -443,7 +470,7 @@ stateDiagram-v2
     INADIMPLENTE --> RETENCAO: 5 tentativas falham\n(dia 6 = bloqueio)
 
     RETENCAO --> ATIVO: pagamento regularizado\n(só quando chegou via INADIMPLENTE)
-    RETENCAO --> SEM_ASSINATURA: seller assina de novo\n(checkout do zero, só quando chegou\nvia CANCELAMENTO_SOLICITADO)
+    RETENCAO --> SEM_ASSINATURA: seller assina de novo\n(checkout do zero, só quando chegou\nvia CANCELAMENTO_SOLICITADO ou CORTESIA)
     RETENCAO --> EXCLUIDO: prazo de retenção esgotado
 ```
 
@@ -459,6 +486,13 @@ stateDiagram-v2
 | `TRIAL_ATIVO` | Limite do trial atingido | `TRIAL_ESGOTADO` | PRODUCTS: 16º produto ou 2ª Store. ADS_ANALYZER: teto de tokens (60k) prevalece sobre nº de execuções | RN-PROD-003, RN-TRIAL-005 |
 | `TRIAL_ATIVO`, `TRIAL_RESTRITO` ou `TRIAL_ESGOTADO` | Seller assina plano pago | `ATIVO` | Pagamento aprovado — vale mesmo em `TRIAL_RESTRITO`, sem precisar contestar/esperar revisão primeiro | RN-PAY-001 |
 | `TRIAL_ATIVO`, `TRIAL_RESTRITO` ou `TRIAL_ESGOTADO` | Passam 30 dias desde o **início do trial** | `EXCLUIDO` | **Só ADS_ANALYZER**, contado da criação do trial, não de quando esgotou — vale em qualquer sub-estado de trial. PRODUCTS não tem prazo (permanece indefinidamente) | RN-TRIAL-006, RN-PROD-002 |
+| `SEM_ASSINATURA` | ADMIN concede cortesia | `CORTESIA` | Seller `role = SELLER` com e-mail confirmado (`ACTIVE`); plano do módulo e prazo final escolhidos pelo ADMIN; motivo obrigatório. Cria a linha de `subscriptions` | RN-ADMIN-011 |
+| `TRIAL_ATIVO`, `TRIAL_RESTRITO` ou `TRIAL_ESGOTADO` | ADMIN concede cortesia | `CORTESIA` | Mesmas condições. O trial **encerra** e não volta. Vale inclusive em `TRIAL_RESTRITO`, sem precisar decidir a contestação antes (contestação pendente continua `PENDENTE`; aprovar depois → `409`, RN-ADMIN-005). Não se aplica a expiração de 30 dias do trial: o seller deixou de estar em trial | RN-ADMIN-011 |
+| `CORTESIA` | ADMIN estende o prazo | `CORTESIA` (self) | Novo `data_fim_cortesia` maior que o atual e dentro do máximo por concessão; motivo obrigatório | RN-ADMIN-012 |
+| `CORTESIA` (ADS_ANALYZER) | Reset mensal do período de tokens | `CORTESIA` (self) | Igual a `ATIVO`: mesma cota do plano concedido, mesmo reset mensal, sem relação com cobrança | RN-ADMIN-013 |
+| `CORTESIA` | Passa `data_fim_cortesia` | `RETENCAO` | Job diário: `data_fim_cortesia` < hoje. Acesso cortado; relógio de retenção (7 ou 30 dias) começa agora; `data_bloqueio` fica nulo (não é inadimplência) | RN-ADMIN-012, RN-RET-001 |
+| `CORTESIA` | ADMIN revoga | `RETENCAO` | Acesso cortado na hora; mesma retenção; motivo obrigatório | RN-ADMIN-011, RN-RET-001 |
+| `CORTESIA` | Seller assina plano pago | `ATIVO` | Pagamento aprovado — mesma regra do trial (só existe quando houver gateway) | RN-PAY-001 |
 | `ATIVO` | Upgrade (só ciclo mensal) | `ATIVO` (self) | Efeito imediato; saldo de tokens transportado — bloqueado em ciclo antecipado (RN-SUB-004) | RN-SUB-005 |
 | `ATIVO` | Downgrade (só ciclo mensal) | `ATIVO` (self) | Efeito imediato; se saldo de tokens negativo, **execuções** ficam bloqueadas até o próximo reset do período de tokens (não muda o estado da assinatura em si — bloqueio de acesso ortogonal, só ADS_ANALYZER) — bloqueado em ciclo antecipado (RN-SUB-004) | RN-SUB-006 |
 | `ATIVO` | Renovação do ciclo de cobrança | `ATIVO` (self) | Pagamento recorrente aprovado | RN-SUB-002 |
@@ -471,7 +505,7 @@ stateDiagram-v2
 | `INADIMPLENTE` | Pagamento regularizado | `ATIVO` | Dentro das 5 tentativas/5 dias | RN-INAD-001 (implícito) |
 | `INADIMPLENTE` | 5 tentativas falham | `RETENCAO` | Dia 6 = bloqueio; relógio de retenção começa agora | RN-INAD-002, RN-INAD-003 |
 | `RETENCAO` (via inadimplência) | Pagamento regularizado | `ATIVO` | Dentro do prazo de retenção (7 ou 30 dias) — **mesma assinatura**, sem novo checkout | RN-RET-003 |
-| `RETENCAO` (via cancelamento voluntário) | Seller decide voltar | `SEM_ASSINATURA` → nova assinatura | Exige **checkout completo do zero**, mesmo com os dados ainda existindo dentro da janela de retenção — diferente do caso de inadimplência, que reativa a mesma assinatura sem novo checkout | RN-SUB-010 |
+| `RETENCAO` (via cancelamento voluntário ou fim de cortesia) | Seller decide voltar | `SEM_ASSINATURA` → nova assinatura | Exige **checkout completo do zero**, mesmo com os dados ainda existindo dentro da janela de retenção — diferente do caso de inadimplência, que reativa a mesma assinatura sem novo checkout | RN-SUB-010 |
 | `RETENCAO` | Prazo de retenção esgotado | `EXCLUIDO` | Sem regularização/reativação | RN-RET-001, RN-RET-003 |
 
 ### 13.4 Gaps encontrados ao formalizar a máquina — todos resolvidos
@@ -503,10 +537,175 @@ Todos foram resolvidos e já incorporados às tabelas acima e às RN-XXX:
    que sim, sem exceção; uma nota do doc de arquitetura que sugeria o
    contrário estava errada e foi corrigida.
 
+5. **`CORTESIA` (10º estado, v1.4)** — pedido do produto para testes sem
+   cobrança: o seller precisa de acesso completo sem pagar, concedido pelo
+   ADMIN. Modelado como estado próprio (não como `ATIVO` com flag) porque
+   `ATIVO` significa "paga, em dia": renovação, inadimplência por
+   vencimento e métricas de receita presumem pagamento. Prazo final
+   obrigatório; ao vencer, cai em `RETENCAO` (mesma janela de 7/30 dias) e
+   volta a `ATIVO` só por pagamento (checkout do zero). Regras em
+   RN-ADMIN-011 a 013.
+
 Todos os pontos identificados até agora foram resolvidos. O destino de
 `ARREPENDIDO → ATIVO` (permitir reassinatura, sem reabrir trial) é
 recomendação desta revisão, ainda pendente de confirmação — ver nota
 na linha correspondente da tabela de transições (§13.3).
+
+---
+
+## 14. ADMIN — Painel administrativo (Fase 1.6)
+
+Escopo: a **API** que um usuário `role = 'ADMIN'` usa para operar o
+produto (acompanhar assinaturas, decidir contestações de trial, registrar
+o preço da API da Anthropic e ler métricas). A interface em React fica na
+Fase 8. Modelo de dados: `subscription_status_history` e
+`admin_audit_log` (`easy-manager-arquitetura-banco-de-dados.md` §3 e §10).
+Endpoints: `easy-manager-software-engineering.md` §10.11.
+
+- **RN-ADMIN-001** (acesso): todo endpoint `/admin/**` exige
+  `role = 'ADMIN'` com MFA concluído no login (RF-AU17). Sem token válido
+  → `401`; token de SELLER → `403`, não `404` — `/admin` não é recurso de
+  um tenant, então a regra do §3.4 do documento de engenharia não se
+  aplica. Endpoint novo sob `/admin` sem a anotação de papel deve falhar
+  em teste.
+- **RN-ADMIN-002** (escopo de dados): ADMIN lê/escreve apenas sobre
+  (a) a conta do seller (identificação, status, CNPJ, e-mail),
+  (b) assinaturas e seu histórico de status, (c) resultado de
+  `payment_attempts` e `refunds` (nunca dado de cartão), (d) `risk_signals`
+  e `trial_contestations`, (e) consumo e custo de tokens (`token_usage`),
+  (f) **status** de Stores (nunca credenciais). **Nunca**: produtos,
+  variações, estoque, relatórios, snapshots de anúncios, credenciais.
+  Respostas de `/admin/**` usam DTOs próprios — nunca reaproveitam DTO de
+  seller. Coerente com a matriz do §12.5 do documento de engenharia.
+- **RN-ADMIN-003** (auditoria): toda ação de **escrita** grava uma linha em
+  `admin_audit_log` (admin, seller afetado, ação, alvo, motivo, IP,
+  resultado) **na mesma transação** da ação; se a gravação falhar, a ação
+  inteira é desfeita. A consulta de **detalhe** de um seller também é
+  auditada (acesso a dado pessoal); listagens e métricas agregadas não. Ação
+  recusada por regra de negócio (ex.: contestação já decidida) grava
+  resultado `REJEITADO` em transação própria, para o rollback não apagar o
+  rastro. Linhas nunca são alteradas nem apagadas.
+- **RN-ADMIN-004** (nenhum atalho de estado): ADMIN nunca escreve
+  `subscriptions.status` diretamente. As **únicas** transições que um ADMIN
+  pode provocar, todas executadas pelo `SubscriptionStateMachine`, são:
+  (a) `TRIAL_RESTRITO → TRIAL_ATIVO` (aprovação de contestação,
+  RN-ABUSE-004); (b) concessão de cortesia, `{sem linha, TRIAL_ATIVO,
+  TRIAL_RESTRITO, TRIAL_ESGOTADO} → CORTESIA`; (c) extensão,
+  `CORTESIA → CORTESIA`; (d) revogação, `CORTESIA → RETENCAO` (b–d em
+  RN-ADMIN-011/012). Estender trial, reativar assinatura paga,
+  restringir manualmente, forçar `ATIVO` ou qualquer outro estado **não
+  existem**: exigiriam uma RN nova e uma linha nova em §13.3 antes de
+  qualquer código.
+- **RN-ADMIN-005** (contestações): só contestação `PENDENTE` pode ser
+  decidida; decidir de novo → `409`. **Aprovar** grava `reviewed_by`,
+  `reviewed_at` e `status = APROVADA` e executa a transição da
+  RN-ADMIN-004 na mesma transação. **Negar** grava `NEGADA` e não altera a
+  assinatura (segue `TRIAL_RESTRITO`; o seller ainda pode assinar um plano
+  pago, §13.3). Motivo obrigatório nas duas decisões. Se a assinatura já
+  saiu de `TRIAL_RESTRITO` (ex.: o seller pagou depois de contestar), a
+  máquina de estados rejeita a transição e a aprovação **não** é gravada
+  (`409`).
+- **RN-ADMIN-006** (preço da API): ADMIN registra um novo preço da API da
+  Anthropic inserindo uma linha em `api_pricing_history` (só-append,
+  RN-TOKEN-008), com `updated_by` = o admin e motivo obrigatório.
+  `effective_from` não pode ser anterior à vigência mais recente já
+  gravada. A cota de tokens (RN-TOKEN-001/002) só passa a refletir o preço
+  novo no próximo ciclo do job diário de câmbio — o painel não recalcula
+  cota. Os preços dos pacotes avulsos (RN-TOKEN-010) continuam sendo
+  revisão manual **fora** do painel.
+- **RN-ADMIN-007** (histórico de assinatura): toda chamada bem-sucedida ao
+  `SubscriptionStateMachine` — inclusive as auto-transições da §13.3
+  (renovação, upgrade/downgrade, reset do período de tokens) — grava uma
+  linha só-append em `subscription_status_history` (status anterior, status
+  novo, gatilho, ator), na mesma transação da mudança. Transição rejeitada
+  não grava nada. É a fonte de verdade de conversão e churn (RN-ADMIN-009):
+  a partir do estado atual de `subscriptions` essas métricas não são
+  calculáveis.
+- **RN-ADMIN-008** (provisionamento): contas ADMIN são criadas **fora de
+  banda**, por um comando único executado por quem administra a
+  infraestrutura — nunca por endpoint HTTP nem por cadastro público. O
+  comando cria a conta com MFA já configurado (ADMIN sem MFA não loga,
+  vigente desde a Fase 1); senha e chave de MFA nunca vão para log.
+- **RN-ADMIN-009** (métricas): somente leitura, sobre dados de conta
+  (RN-ADMIN-002). Definições:
+  1. *Assinaturas por módulo e status* — contagem atual.
+  2. *Entradas em trial no período* — linhas de histórico com status novo
+     `TRIAL_ATIVO` e status anterior nulo, excluindo o gatilho `BACKFILL`.
+  3. *Conversão de trial (coorte)* — das assinaturas que entraram em trial
+     no período, a fração que teve alguma transição para `ATIVO` depois da
+     entrada, até o momento da consulta.
+  4. *Cancelamentos no período* — transições para `CANCELAMENTO_SOLICITADO`;
+     taxa = cancelamentos ÷ assinaturas `ATIVO` no início do período
+     (reconstruídas pelo histórico).
+  5. *Inadimplência* — nº de assinaturas `INADIMPLENTE` e o MRR delas
+     ("MRR em risco").
+  6. *MRR contratado, por módulo* — soma do valor mensal equivalente das
+     assinaturas `ATIVO`: `monthly_price` × (1 − desconto do ciclo: 0/5/8/12%,
+     RN-SUB-003) × (1 − 15% se existe outra assinatura `ATIVO` com o mesmo
+     `combo_group_id`, RN-COMBO-001/002). MRR de `CANCELAMENTO_SOLICITADO`
+     (ainda dentro do ciclo pago) aparece em linha separada, não somado.
+  7. *Tokens* — consumo total (`total_tokens`) do período de tokens vigente
+     e % médio da cota, por plano; ranking dos maiores consumidores.
+  8. *Margem por seller ADS_ANALYZER* — receita = valor mensal equivalente
+     (item 6); custo = soma de `cost_brl_snapshot` do período de tokens;
+     margem realizada = 1 − custo ÷ receita, ao lado da `target_margin` do
+     plano. O custo de execuções de trial (origem `TRIAL`) é reportado à
+     parte, como custo de aquisição.
+  9. *Abuso* — sinais de risco por tipo no período; fila de contestações
+     pendentes e taxa de aprovação; entradas diárias de trial e conversão,
+     para a vigilância da RN-ABUSE-006.
+
+  Os itens 7 e 8 só terão dados reais quando a Fase 7 existir; até lá são
+  testados com dados de teste inseridos diretamente.
+- **RN-ADMIN-010** (rótulo de receita): enquanto não houver gateway de
+  pagamento (lacuna aberta no `PROGRESS.md`), o painel só mostra valores
+  **contratados** (tabela de planos × estado da assinatura). Nenhuma métrica
+  pode ser apresentada como receita *recebida* ou *cobrada*; quando o
+  gateway existir, o MRR passa a poder ser conferido contra os valores
+  efetivamente cobrados.
+- **RN-ADMIN-011** (cortesia — concessão e revogação): ADMIN concede
+  acesso completo e gratuito a um seller num módulo, escolhendo o **módulo**,
+  o **plano** (um dos 3 do módulo) e o **prazo final**. Condições: o alvo
+  tem `role = SELLER` e e-mail confirmado (`ACTIVE`); a assinatura do
+  módulo está sem linha ou em `TRIAL_ATIVO`/`TRIAL_RESTRITO`/
+  `TRIAL_ESGOTADO`. Qualquer outro estado → `409` (um seller `ATIVO` já
+  paga; `RETENCAO`, `ARREPENDIDO` e `EXCLUIDO` ficam fora do escopo).
+  Motivo obrigatório; auditado como `CONCEDER_CORTESIA`. Efeitos: `plan_id`
+  = plano escolhido, `billing_cycle` nulo, trial encerrado, e — só em
+  ADS_ANALYZER — abre o período mensal de tokens (início na concessão).
+  **Revogar** leva a `RETENCAO` na hora, com motivo obrigatório e ação
+  `REVOGAR_CORTESIA`.
+- **RN-ADMIN-012** (cortesia — prazo): `data_fim_cortesia` é obrigatório e
+  o **último dia de acesso**. O máximo por concessão ou extensão é de **90
+  dias** a partir de hoje (configurável, `app.courtesy.max-days`).
+  **Estender** só vale enquanto o estado é `CORTESIA`: o novo prazo tem de
+  ser posterior ao atual e respeitar o máximo; ação `ESTENDER_CORTESIA`. Um
+  job diário move para `RETENCAO` toda `CORTESIA` com `data_fim_cortesia` <
+  hoje, calculando `scheduled_deletion_date` por RN-RET-001 (7 dias
+  ADS_ANALYZER, 30 PRODUCTS) e deixando `data_bloqueio` nulo. Vencida a
+  cortesia, **não há re-concessão** nesta fase: o ADMIN precisa estender
+  antes do vencimento, ou o seller assina um plano pago (checkout do zero,
+  como no cancelamento voluntário, RN-SUB-010).
+- **RN-ADMIN-013** (cortesia — efeitos): em `CORTESIA` o seller se comporta
+  como plano pago nos limites, e como não pagante no resto. `canUseModule`
+  é verdadeiro; `getStoreLimit` = `plans.stores_limit` do plano concedido;
+  `canCreateProduct` sem teto de 15 produtos; em ADS_ANALYZER a cota e o
+  reset mensal são os do plano (mesma conta do `ATIVO`);
+  `canBuyExtraPackage` é **falso** (pacote avulso exige pagamento). A
+  execução de análise grava `token_usage.source = 'COMPLIMENTARY'`, para o
+  custo da cortesia ficar à parte. `DelinquencyJob` e `TrialExpirationJob`
+  ignoram `CORTESIA`; o `RetentionJob` trata normalmente o `RETENCAO` que
+  resulta dela. Nas métricas (RN-ADMIN-009), `CORTESIA` fica **fora do
+  MRR**; aparece em linha própria (contagem, dias restantes, valor de
+  tabela concedido, custo de tokens) e a "conversão de cortesia" (fração
+  que chegou a `ATIVO`) é reportada à parte da conversão de trial.
+
+**Fora do escopo desta fase (registrado de propósito):** ativar/desativar
+seller (citado em §10.9 do documento de engenharia, mas nenhuma RN define o
+efeito sobre login/acesso); estender trial (a cortesia o substitui); reativar assinatura paga
+manualmente; re-conceder cortesia depois de `RETENCAO` (RN-ADMIN-004/012); reembolso manual (depende do gateway);
+monitoramento de execução dos jobs (não existe tabela de execuções);
+preços de pacotes avulsos (RN-TOKEN-010).
 
 ---
 
